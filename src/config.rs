@@ -9,7 +9,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            app_dir: "".to_owned(),
+            app_dir: "./apps".to_owned(),
             socket_port: 3401,
         }
     }

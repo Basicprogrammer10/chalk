@@ -3,12 +3,19 @@ use std::process;
 
 use colored::Colorize;
 use directories::ProjectDirs;
+use parking_lot::RwLock;
 
 use crate::config::Config;
 
 pub struct App {
     pub app_dir: ProjectDirs,
     pub config: Config,
+    pub logs: RwLock<Vec<(LogType, String)>>,
+}
+
+pub enum LogType {
+    Error,
+    Info,
 }
 
 impl App {
@@ -30,6 +37,17 @@ impl App {
             }
         };
 
-        Self { app_dir, config }
+        Self {
+            app_dir,
+            config,
+            logs: RwLock::new(Vec::new()),
+        }
+    }
+
+    pub fn log<T: AsRef<str>>(&self, log_type: LogType, text: T) {
+        self.logs.write().push((log_type, text.as_ref().to_owned()));
+
+        // DEBUG!
+        println!("{}", text.as_ref());
     }
 }
