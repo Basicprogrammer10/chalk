@@ -2,9 +2,13 @@ use serde_derive::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
+    // Misc
     pub app_dir: String,
     pub task_poll: u32,
-    pub socket_port: u16,
+
+    // Api Confgi
+    pub api_host: String,
+    pub api_port: u16,
 }
 
 impl Default for Config {
@@ -12,7 +16,9 @@ impl Default for Config {
         Self {
             app_dir: "./apps".to_owned(),
             task_poll: 1000,
-            socket_port: 3401,
+
+            api_host: "localhost".to_owned(),
+            api_port: 3401,
         }
     }
 }

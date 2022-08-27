@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use parking_lot::{Mutex, RwLock};
 use serde_derive::{Deserialize, Serialize};
+use serde_json::{json, Value};
 
 use crate::{App, LogType};
 
@@ -179,5 +180,17 @@ impl Project {
 impl ProjectStatus {
     pub fn is_running(&self) -> bool {
         *self == ProjectStatus::Running
+    }
+
+    pub fn json(&self) -> Value {
+        let state = match self {
+            ProjectStatus::Running => "running",
+            ProjectStatus::Stoped => "stoped",
+            ProjectStatus::Crashed(i) => {
+                return json!({ "state": "crashed", "is_ok": i.success(), "code": i.code()});
+            }
+        };
+
+        json!({ "state": state })
     }
 }
