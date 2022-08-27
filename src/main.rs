@@ -1,11 +1,11 @@
 use std::sync::Arc;
-use std::thread;
-use std::time::{Duration, Instant};
 
 mod app;
 mod config;
+mod misc;
 mod project;
 use app::{App, LogType};
+use misc::Timer;
 use project::Project;
 
 fn main() {
@@ -16,19 +16,10 @@ fn main() {
     projects.iter().for_each(|x| x.start(app.clone()));
 
     // Start an loop to poll tasks
-    loop {
-        let start = Instant::now();
-
-        // Poll all tasks
+    Timer::new(app.config.task_poll).start(|| {
         projects
             .iter()
             .filter(|x| x.status.read().is_running())
-            .for_each(Project::poll);
-
-        thread::sleep(Duration::from_millis(
-            app.config
-                .task_poll
-                .saturating_sub(start.elapsed().as_millis() as u32) as u64,
-        ))
-    }
+            .for_each(Project::poll)
+    });
 }
