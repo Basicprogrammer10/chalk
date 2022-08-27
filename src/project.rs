@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use std::process::{self, Child};
+use std::process::{self, Child, ExitStatus, Stdio};
 use std::sync::Arc;
 
 use parking_lot::{Mutex, RwLock};
@@ -66,11 +66,11 @@ pub struct GitInfo {
     pub token: Option<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ProjectStatus {
     Running,
     Stoped,
-    Crashed(u8),
+    Crashed(ExitStatus),
 }
 
 impl Project {
@@ -111,11 +111,25 @@ impl Project {
         let child = process::Command::new(binary_path)
             .args(&self.run_arguments)
             .envs(self.run_enviroment_vars.iter().cloned())
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
             .spawn()
             .unwrap();
 
         *self.process.lock() = Some(child);
         *self.status.write() = ProjectStatus::Running;
+    }
+
+    pub fn poll(&self) {
+        let mut process = self.process.lock();
+        if process.is_none() {
+            return;
+        }
+
+        if let Some(i) = process.as_mut().unwrap().try_wait().unwrap() {
+            *self.status.write() = ProjectStatus::Crashed(i);
+        }
     }
 
     pub fn find_projects(app: Arc<App>) -> Vec<Project> {
@@ -159,5 +173,11 @@ impl Project {
         }
 
         out
+    }
+}
+
+impl ProjectStatus {
+    pub fn is_running(&self) -> bool {
+        *self == ProjectStatus::Running
     }
 }
