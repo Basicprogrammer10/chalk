@@ -3,7 +3,6 @@ use std::time::UNIX_EPOCH;
 
 use afire::{Content, Method, Response, Server};
 use serde_json::json;
-use sys_info;
 
 use crate::App;
 
