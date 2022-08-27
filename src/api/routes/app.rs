@@ -15,15 +15,19 @@ pub fn attach(server: &mut Server<Arc<App>>) {
             None => return misc::error_res("Invalid App"),
         };
 
-        app.process.lock().as_mut().unwrap().stdout.take().unwrap();
+        let stdout = app.process.stdout.read();
+        let stdout = String::from_utf8_lossy(&stdout);
+
+        let stderr = app.process.stderr.read();
+        let stderr = String::from_utf8_lossy(&stderr);
 
         Response::new()
             .text(json!({
                 "name": app.name,
                 "status": app.status.read().json(),
                 "output": {
-                    "stdout": String::from_utf8_lossy(& app.stdout.read()),
-                    "stderr": "",
+                    "stdout": stdout,
+                    "stderr": stderr,
                 }
             }))
             .content(Content::JSON)

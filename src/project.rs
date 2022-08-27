@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
-use std::io::Read;
 use std::path::PathBuf;
-use std::process::{self, Child, ExitStatus, Stdio};
+use std::process::{self, Child, ChildStderr, ChildStdout, ExitStatus, Stdio};
 use std::sync::Arc;
 
 use nonblock::NonBlockingReader;
@@ -12,7 +11,6 @@ use serde_json::{json, Value};
 
 use crate::{App, LogType};
 
-#[derive(Debug)]
 pub struct Project {
     // == Static Settings ==
     /// The app friendly name
@@ -39,14 +37,8 @@ pub struct Project {
     /// Current status of the process (for cli / automations?)
     pub status: RwLock<ProjectStatus>,
 
-    /// Process handle for polling status and such
-    pub process: Mutex<Option<Child>>,
-
-    /// Process stdout
-    pub stdout: RwLock<Vec<u8>>,
-
-    /// Process stderr
-    pub stderr: RwLock<Vec<u8>>,
+    /// Lower level process stuff
+    pub process: Process,
 
     /// Arguments to run process with
     pub run_arguments: Vec<String>,
@@ -66,6 +58,23 @@ pub struct RawProjectConfig {
     pub git_repo: String,
     pub git_username: Option<String>,
     pub git_token: Option<String>,
+}
+
+pub struct Process {
+    /// Process handle for polling status and such
+    pub process: Mutex<Option<Child>>,
+
+    /// Stdout Reader
+    pub stdout_reader: Mutex<Option<NonBlockingReader<ChildStdout>>>,
+
+    /// Process stdout
+    pub stdout: RwLock<Vec<u8>>,
+
+    /// Stderr Reader
+    pub stderr_reader: Mutex<Option<NonBlockingReader<ChildStderr>>>,
+
+    /// Process stderr
+    pub stderr: RwLock<Vec<u8>>,
 }
 
 #[derive(Debug)]
@@ -94,9 +103,7 @@ impl Project {
             },
             project_path: path,
             status: RwLock::new(ProjectStatus::Stoped),
-            process: Mutex::new(None),
-            stdout: RwLock::new(Vec::new()),
-            stderr: RwLock::new(Vec::new()),
+            process: Process::new(),
             run_arguments: raw.run_args,
             run_enviroment_vars: raw.run_evars.into_iter().collect(),
         }
@@ -105,7 +112,7 @@ impl Project {
     pub fn start(&self, app: Arc<App>) {
         let binary_path = self.project_path.join("binary");
 
-        if self.process.lock().is_some() {
+        if self.process.process.lock().is_some() {
             app.log(
                 LogType::Error,
                 format!("Process already started `{}`", self.name),
@@ -119,7 +126,7 @@ impl Project {
         }
 
         app.log(LogType::Info, format!("Starting `{}`", self.name));
-        let child = process::Command::new(binary_path)
+        let mut child = process::Command::new(binary_path)
             .args(&self.run_arguments)
             .envs(self.run_enviroment_vars.iter().cloned())
             .stdin(Stdio::null())
@@ -128,12 +135,16 @@ impl Project {
             .spawn()
             .unwrap();
 
-        *self.process.lock() = Some(child);
+        *self.process.stdout_reader.lock() =
+            Some(NonBlockingReader::from_fd(child.stdout.take().unwrap()).unwrap());
+        *self.process.stderr_reader.lock() =
+            Some(NonBlockingReader::from_fd(child.stderr.take().unwrap()).unwrap());
+        *self.process.process.lock() = Some(child);
         *self.status.write() = ProjectStatus::Running;
     }
 
     pub fn poll(&self) {
-        let mut process = self.process.lock();
+        let mut process = self.process.process.lock();
         if process.is_none() {
             return;
         }
@@ -145,10 +156,21 @@ impl Project {
             *self.status.write() = ProjectStatus::Crashed(i);
         }
 
-        println!("START");
-        let reader = NonBlockingReader::from_fd(process.stdout.as_mut().unwrap()).unwrap();
-        reader.read_available(self.stdout.write().as_mut()).unwrap();
-        println!("END");
+        self.process
+            .stdout_reader
+            .lock()
+            .as_mut()
+            .unwrap()
+            .read_available(self.process.stdout.write().as_mut())
+            .unwrap();
+
+        self.process
+            .stderr_reader
+            .lock()
+            .as_mut()
+            .unwrap()
+            .read_available(self.process.stderr.write().as_mut())
+            .unwrap();
     }
 
     pub fn find_projects(app: Arc<App>) -> Vec<Project> {
@@ -210,5 +232,17 @@ impl ProjectStatus {
         };
 
         json!({ "state": state })
+    }
+}
+
+impl Process {
+    pub fn new() -> Self {
+        Self {
+            process: Mutex::new(None),
+            stdout_reader: Mutex::new(None),
+            stderr_reader: Mutex::new(None),
+            stdout: RwLock::new(Vec::new()),
+            stderr: RwLock::new(Vec::new()),
+        }
     }
 }
