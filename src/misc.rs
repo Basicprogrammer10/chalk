@@ -1,6 +1,9 @@
 use std::thread;
 use std::time::{Duration, Instant};
 
+use afire::{Content, Response};
+use serde_json::json;
+
 pub struct Timer {
     /// MS per loop
     pub time: u32,
@@ -28,4 +31,12 @@ impl Timer {
             ))
         }
     }
+}
+
+// Misc Functions
+pub fn error_res<T: AsRef<str>>(err: T) -> Response {
+    Response::new()
+        .status(400)
+        .text(json!({"error": err.as_ref()}))
+        .content(Content::JSON)
 }

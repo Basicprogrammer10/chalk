@@ -4,7 +4,7 @@ use std::time::UNIX_EPOCH;
 use afire::{Content, Method, Response, Server};
 use serde_json::json;
 
-use crate::App;
+use crate::{App, VERSION};
 
 pub fn attach(server: &mut Server<Arc<App>>) {
     server.stateful_route(Method::GET, "/status", |app, _req| {
@@ -37,6 +37,7 @@ pub fn attach(server: &mut Server<Arc<App>>) {
 
         Response::new()
             .text(json!({
+                "version": VERSION,
                 "system": {
                     "disk": {
                         "total": disk.total,

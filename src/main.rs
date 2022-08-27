@@ -9,9 +9,11 @@ use app::{App, LogType};
 use misc::Timer;
 use project::Project;
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 fn main() {
     let app = Arc::new(App::new());
-    app.log(LogType::Info, "Starting");
+    app.log(LogType::Info, format!("Starting (v{})", VERSION));
 
     // Load Projects
     app.projects

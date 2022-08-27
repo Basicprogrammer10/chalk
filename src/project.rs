@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fs;
+use std::io::Read;
 use std::path::PathBuf;
 use std::process::{self, Child, ExitStatus, Stdio};
 use std::sync::Arc;
@@ -39,6 +40,12 @@ pub struct Project {
 
     /// Process handle for polling status and such
     pub process: Mutex<Option<Child>>,
+
+    /// Process stdout
+    pub stdout: RwLock<Vec<u8>>,
+
+    /// Process stderr
+    pub stderr: RwLock<Vec<u8>>,
 
     /// Arguments to run process with
     pub run_arguments: Vec<String>,
@@ -87,6 +94,8 @@ impl Project {
             project_path: path,
             status: RwLock::new(ProjectStatus::Stoped),
             process: Mutex::new(None),
+            stdout: RwLock::new(Vec::new()),
+            stderr: RwLock::new(Vec::new()),
             run_arguments: raw.run_args,
             run_enviroment_vars: raw.run_evars.into_iter().collect(),
         }
@@ -128,9 +137,18 @@ impl Project {
             return;
         }
 
-        if let Some(i) = process.as_mut().unwrap().try_wait().unwrap() {
+        let process = process.as_mut().unwrap();
+
+        // Set App Status
+        if let Some(i) = process.try_wait().unwrap() {
             *self.status.write() = ProjectStatus::Crashed(i);
         }
+
+        // println!("START");
+        // self.stdout
+        //     .write()
+        //     .extend(process.stdout.as_mut().unwrap().bytes().map(|x| x.unwrap()));
+        // println!("END");
     }
 
     pub fn find_projects(app: Arc<App>) -> Vec<Project> {

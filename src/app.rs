@@ -25,6 +25,7 @@ pub struct Log {
     pub data: String,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum LogType {
     Error,
     Info,
@@ -67,6 +68,11 @@ impl App {
         });
 
         // DEBUG!
+        if log_type == LogType::Error {
+            println!("{}", text.as_ref().red());
+            return;
+        }
+
         println!("{}", text.as_ref());
     }
 }
