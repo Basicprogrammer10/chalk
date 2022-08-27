@@ -1,11 +1,11 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use std::process::Child;
+use std::process::{self, Child};
 use std::sync::Arc;
 
 use parking_lot::{Mutex, RwLock};
 use serde_derive::{Deserialize, Serialize};
-use toml::Value;
 
 use crate::{App, LogType};
 
@@ -38,12 +38,22 @@ pub struct Project {
 
     /// Process handle for polling status and such
     pub process: Mutex<Option<Child>>,
+
+    /// Arguments to run process with
+    pub run_arguments: Vec<String>,
+
+    /// Enviroment varables to run process with
+    pub run_enviroment_vars: Vec<(String, String)>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct RawProjectConfig {
     pub name: String,
     pub api_token: String,
+
+    pub run_args: Vec<String>,
+    pub run_evars: HashMap<String, String>,
+
     pub git_repo: String,
     pub git_username: Option<String>,
     pub git_token: Option<String>,
@@ -76,7 +86,36 @@ impl Project {
             project_path: path,
             status: RwLock::new(ProjectStatus::Stoped),
             process: Mutex::new(None),
+            run_arguments: raw.run_args,
+            run_enviroment_vars: raw.run_evars.into_iter().collect(),
         }
+    }
+
+    pub fn start(&self, app: Arc<App>) {
+        let binary_path = self.project_path.join("binary");
+
+        if self.process.lock().is_some() {
+            app.log(
+                LogType::Error,
+                format!("Process already started `{}`", self.name),
+            );
+            return;
+        }
+
+        if !binary_path.exists() {
+            app.log(LogType::Error, format!("No runable binary `{}`", self.name));
+            return;
+        }
+
+        app.log(LogType::Info, format!("Starting `{}`", self.name));
+        let child = process::Command::new(binary_path)
+            .args(&self.run_arguments)
+            .envs(self.run_enviroment_vars.iter().cloned())
+            .spawn()
+            .unwrap();
+
+        *self.process.lock() = Some(child);
+        *self.status.write() = ProjectStatus::Running;
     }
 
     pub fn find_projects(app: Arc<App>) -> Vec<Project> {
