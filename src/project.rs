@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::process::{self, Child, ExitStatus, Stdio};
 use std::sync::Arc;
 
+use nonblock::NonBlockingReader;
 use parking_lot::{Mutex, RwLock};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -144,11 +145,10 @@ impl Project {
             *self.status.write() = ProjectStatus::Crashed(i);
         }
 
-        // println!("START");
-        // self.stdout
-        //     .write()
-        //     .extend(process.stdout.as_mut().unwrap().bytes().map(|x| x.unwrap()));
-        // println!("END");
+        println!("START");
+        let reader = NonBlockingReader::from_fd(process.stdout.as_mut().unwrap()).unwrap();
+        reader.read_available(self.stdout.write().as_mut()).unwrap();
+        println!("END");
     }
 
     pub fn find_projects(app: Arc<App>) -> Vec<Project> {
