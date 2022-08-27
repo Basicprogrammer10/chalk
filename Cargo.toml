@@ -1,0 +1,12 @@
+[package]
+name = "chalk"
+author = ["Connor Slade <connor@connorcode.com>"]
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+colored = "2.0.0"
+directories = "4.0.1"
+serde = "1.0.144"
+serde_derive = "1.0.144"
+toml = "0.5.9"
