@@ -1,6 +1,7 @@
 use std::fmt::{self, Display, Formatter};
 use std::fs;
 use std::process;
+use std::sync::atomic::AtomicU64;
 use std::time::SystemTime;
 
 use colored::Colorize;
@@ -17,6 +18,7 @@ pub struct App {
 
     pub projects: RwLock<Vec<Project>>,
     pub logs: RwLock<Vec<Log>>,
+    pub last_exit_try: AtomicU64,
 }
 
 pub struct Log {
@@ -57,6 +59,7 @@ impl App {
 
             projects: RwLock::new(Vec::new()),
             logs: RwLock::new(Vec::new()),
+            last_exit_try: AtomicU64::new(0),
         }
     }
 
