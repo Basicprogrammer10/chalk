@@ -11,10 +11,9 @@ pub fn start(app: Arc<App>) {
     thread::Builder::new()
         .name("API".into())
         .spawn(|| {
-            let mut server =
-                Server::<Arc<App>>::new(&app.config.api_host, app.config.api_port).state(app);
+            let mut server = Server::<()>::new(&app.config.api_host, app.config.api_port);
 
-            routes::attach(&mut server);
+            routes::attach(&mut server, app);
 
             server.start().unwrap();
         })

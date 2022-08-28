@@ -11,6 +11,8 @@ use serde_json::{json, Value};
 
 use crate::{App, LogType};
 
+type Reader<T> = Mutex<Option<NonBlockingReader<T>>>;
+
 pub struct Project {
     // == Static Settings ==
     /// The app friendly name
@@ -20,14 +22,14 @@ pub struct Project {
     pub api_token: String,
 
     /// Git repo info
-    pub git_info: GitInfo,
+    pub git_info: Option<GitInfo>,
 
     /// The path to the app folder
     ///
     /// ```
     /// [project_path]
     /// | config.toml
-    /// | git-repo
+    /// | repo
     /// | | ...
     /// | binary
     /// ```
@@ -45,6 +47,10 @@ pub struct Project {
 
     /// Enviroment varables to run process with
     pub run_enviroment_vars: Vec<(String, String)>,
+
+    // == MISC ==
+    /// Refrence to app
+    app: Arc<App>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -55,7 +61,7 @@ pub struct RawProjectConfig {
     pub run_args: Vec<String>,
     pub run_evars: HashMap<String, String>,
 
-    pub git_repo: String,
+    pub git_repo: Option<String>,
     pub git_username: Option<String>,
     pub git_token: Option<String>,
 }
@@ -65,13 +71,13 @@ pub struct Process {
     pub process: Mutex<Option<Child>>,
 
     /// Stdout Reader
-    pub stdout_reader: Mutex<Option<NonBlockingReader<ChildStdout>>>,
+    pub stdout_reader: Reader<ChildStdout>,
 
     /// Process stdout
     pub stdout: RwLock<Vec<u8>>,
 
     /// Stderr Reader
-    pub stderr_reader: Mutex<Option<NonBlockingReader<ChildStderr>>>,
+    pub stderr_reader: Reader<ChildStderr>,
 
     /// Process stderr
     pub stderr: RwLock<Vec<u8>>,
@@ -92,28 +98,35 @@ pub enum ProjectStatus {
 }
 
 impl Project {
-    fn from_raw(raw: RawProjectConfig, path: PathBuf) -> Self {
+    fn from_raw(raw: RawProjectConfig, path: PathBuf, app: Arc<App>) -> Self {
+        let mut git_info = None;
+
+        if raw.git_repo.is_some() {
+            git_info = Some(GitInfo {
+                repo: raw.git_repo.unwrap(),
+                username: raw.git_username,
+                token: raw.git_token,
+            });
+        }
+
         Self {
             name: raw.name,
             api_token: raw.api_token,
-            git_info: GitInfo {
-                repo: raw.git_repo,
-                username: raw.git_username,
-                token: raw.git_token,
-            },
+            git_info,
             project_path: path,
             status: RwLock::new(ProjectStatus::Stoped),
             process: Process::new(),
             run_arguments: raw.run_args,
             run_enviroment_vars: raw.run_evars.into_iter().collect(),
+            app,
         }
     }
 
-    pub fn start(&self, app: Arc<App>) {
+    pub fn start(&self) {
         let binary_path = self.project_path.join("binary");
 
         if self.process.process.lock().is_some() {
-            app.log(
+            self.app.log(
                 LogType::Error,
                 format!("Process already started `{}`", self.name),
             );
@@ -121,11 +134,13 @@ impl Project {
         }
 
         if !binary_path.exists() {
-            app.log(LogType::Error, format!("No runable binary `{}`", self.name));
+            self.app
+                .log(LogType::Error, format!("No runable binary `{}`", self.name));
             return;
         }
 
-        app.log(LogType::Info, format!("Starting `{}`", self.name));
+        self.app
+            .log(LogType::Info, format!("Starting `{}`", self.name));
         let mut child = process::Command::new(binary_path)
             .args(&self.run_arguments)
             .envs(self.run_enviroment_vars.iter().cloned())
@@ -143,6 +158,17 @@ impl Project {
         *self.status.write() = ProjectStatus::Running;
     }
 
+    pub fn stop(&self) {
+        let mut process = self.process.process.lock();
+        if process.is_none() {
+            return;
+        }
+
+        let process = process.as_mut().unwrap();
+        process.kill().unwrap();
+        self.poll();
+    }
+
     pub fn poll(&self) {
         let mut process = self.process.process.lock();
         if process.is_none() {
@@ -152,9 +178,11 @@ impl Project {
         let process = process.as_mut().unwrap();
 
         // Set App Status
-        if let Some(i) = process.try_wait().unwrap() {
-            *self.status.write() = ProjectStatus::Crashed(i);
-        }
+        match process.try_wait().unwrap() {
+            Some(x) if x.success() => *self.status.write() = ProjectStatus::Stoped,
+            Some(i) => *self.status.write() = ProjectStatus::Crashed(i),
+            _ => {}
+        };
 
         self.process
             .stdout_reader
@@ -173,6 +201,35 @@ impl Project {
             .unwrap();
     }
 
+    pub fn load_project(path: PathBuf, app: Arc<App>) -> Option<Project> {
+        app.log(
+            LogType::Info,
+            format!(
+                "Loading app `{}`",
+                path.file_name().unwrap().to_string_lossy()
+            ),
+        );
+
+        // Read config
+        let app_config = path.join("config.toml");
+        if !app_config.exists() {
+            app.log(LogType::Error, "App config file not found! (config.toml)");
+            return None;
+        }
+        let raw_config = fs::read_to_string(app_config).unwrap();
+
+        // Load config
+        let config = match toml::from_str::<RawProjectConfig>(&raw_config) {
+            Ok(i) => i,
+            Err(e) => {
+                app.log(LogType::Error, format!("Invalid app config: {}", e));
+                return None;
+            }
+        };
+
+        return Some(Self::from_raw(config, path, app.clone()));
+    }
+
     pub fn find_projects(app: Arc<App>) -> Vec<Project> {
         let app_dir = app.app_dir.preference_dir().join(&app.config.app_dir);
         let mut out = Vec::new();
@@ -188,29 +245,9 @@ impl Project {
             .map(|x| x.unwrap())
             .filter(|x| x.path().is_dir())
         {
-            app.log(
-                LogType::Info,
-                format!("Loading app `{}`", i.file_name().to_string_lossy()),
-            );
-
-            // Read config
-            let app_config = i.path().join("config.toml");
-            if !app_config.exists() {
-                app.log(LogType::Error, "App config file not found! (config.toml)");
-                continue;
+            if let Some(i) = Self::load_project(i.path(), app.clone()) {
+                out.push(i);
             }
-            let raw_config = fs::read_to_string(app_config).unwrap();
-
-            // Load config
-            let config = match toml::from_str::<RawProjectConfig>(&raw_config) {
-                Ok(i) => i,
-                Err(e) => {
-                    app.log(LogType::Error, format!("Invalid app config: {}", e));
-                    continue;
-                }
-            };
-
-            out.push(Self::from_raw(config, i.path()));
         }
 
         out

@@ -1,13 +1,14 @@
 use std::sync::Arc;
 
 use afire::{Content, Method, Response, Server};
-use serde_json::json;
+use serde_json::{json, Value};
 
 use crate::{misc, App};
 
-pub fn attach(server: &mut Server<Arc<App>>) {
-    server.stateful_route(Method::GET, "/get/{app}", |app, req| {
-        let app_name = req.path_param("app").unwrap();
+pub fn attach(server: &mut Server, app: Arc<App>) {
+    server.route(Method::POST, "/app/info", move |req| {
+        let body = serde_json::from_str::<Value>(&req.body_string().unwrap()).unwrap();
+        let app_name = body.get("name").unwrap().as_str().unwrap();
 
         let projects = app.projects.read();
         let app = match projects.iter().find(|x| x.name == app_name) {

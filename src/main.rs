@@ -21,10 +21,7 @@ fn main() {
         .extend(Project::find_projects(app.clone()));
 
     // Start projects
-    app.projects
-        .read()
-        .iter()
-        .for_each(|x| x.start(app.clone()));
+    app.projects.read().iter().for_each(Project::start);
 
     // Start API
     api::start(app.clone());

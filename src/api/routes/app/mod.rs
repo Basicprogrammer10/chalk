@@ -4,10 +4,10 @@ use afire::Server;
 
 use crate::App;
 
-mod app;
-mod status;
+mod action;
+mod info;
 
 pub fn attach(server: &mut Server, app: Arc<App>) {
-    app::attach(server, app.clone());
-    status::attach(server, app);
+    action::attach(server, app.clone());
+    info::attach(server, app);
 }
