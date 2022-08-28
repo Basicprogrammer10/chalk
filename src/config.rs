@@ -6,9 +6,15 @@ pub struct Config {
     pub app_dir: String,
     pub task_poll: u32,
 
-    // Api Confgi
-    pub api_host: String,
-    pub api_port: u16,
+    // Api Config
+    pub api: Api,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Api {
+    pub host: String,
+    pub port: u16,
+    pub workers: usize,
 }
 
 impl Default for Config {
@@ -17,8 +23,11 @@ impl Default for Config {
             app_dir: "./apps".to_owned(),
             task_poll: 1000,
 
-            api_host: "localhost".to_owned(),
-            api_port: 3401,
+            api: Api {
+                host: "localhost".to_owned(),
+                port: 3401,
+                workers: 10,
+            },
         }
     }
 }

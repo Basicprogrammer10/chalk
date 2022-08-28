@@ -23,7 +23,8 @@ struct RequestData {
 
     // Action info
     action: ActionType,
-    action_data: Option<String>,
+    signal: Option<String>,
+    data: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -51,8 +52,8 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
                 }
 
                 let mut sig = Signal::SIGINT;
-                if let Some(i) = body.action_data {
-                    sig = Signal::from_str(&i).unwrap();
+                if let Some(i) = body.signal {
+                    sig = Signal::from_str(&i).expect("Invalid signal type");
                 }
 
                 project.stop(sig);
@@ -68,17 +69,19 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
                     return misc::error_res("App is still running");
                 }
 
-                if body.action_data.is_some() {
-                    let base64_dec = base64::decode(body.action_data.unwrap()).unwrap();
+                if let Some(data) = body.data {
+                    let base64_dec = base64::decode(data).expect("`data` is not valid base64");
                     let mut gzip_dec = GzDecoder::new(Cursor::new(base64_dec));
 
                     let mut out = Vec::new();
-                    gzip_dec.read_to_end(&mut out).unwrap();
-                    fs::write(project.project_path.join("binary"), out).unwrap();
+                    gzip_dec.read_to_end(&mut out).expect("Error decompressing");
+                    fs::write(project.project_path.join("binary"), out)
+                        .expect("Error writing new binary");
                 }
 
                 if let Some(i) = &project.git_info {
-                    Repository::clone(&i.repo, project.project_path.join("repo")).unwrap();
+                    Repository::clone(&i.repo, project.project_path.join("repo"))
+                        .expect("Error cloneing repo");
                 }
             }
             ActionType::Reload => {
@@ -86,12 +89,13 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
                     return misc::error_res("App is still running");
                 }
                 let path = project.project_path.to_owned();
-
                 drop(projects);
 
                 let mut projects = app.projects.write();
                 projects.retain(|x| x.name != body.name);
-                projects.push(Project::load_project(path, app.clone()).unwrap());
+                projects.push(
+                    Project::load_project(path, app.clone()).expect("New project is invalid"),
+                );
                 drop(projects);
             }
         }

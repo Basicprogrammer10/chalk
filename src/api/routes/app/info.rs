@@ -7,8 +7,13 @@ use crate::{misc, App, Project};
 
 pub fn attach(server: &mut Server, app: Arc<App>) {
     server.route(Method::POST, "/app/info", move |req| {
-        let body = serde_json::from_str::<Value>(&req.body_string().unwrap()).unwrap();
-        let app_name = body.get("name").unwrap().as_str().unwrap();
+        let body = serde_json::from_str::<Value>(&String::from_utf8_lossy(&req.body))
+            .expect("Invalid Json");
+        let app_name = body
+            .get("name")
+            .expect("No `name`")
+            .as_str()
+            .expect("`name` is not a string");
 
         let projects = app.projects.read();
         let app = match projects.iter().find(|x| x.name == app_name) {

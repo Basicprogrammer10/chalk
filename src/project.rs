@@ -231,7 +231,7 @@ impl Project {
             }
         };
 
-        return Some(Self::from_raw(config, path, app.clone()));
+        Some(Self::from_raw(config, path, app))
     }
 
     pub fn find_projects(app: Arc<App>) -> Vec<Project> {
