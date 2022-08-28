@@ -85,7 +85,7 @@ pub fn do_merge<'a>(
 
     if analysis.0.is_normal() {
         let head_commit = repo.reference_to_annotated_commit(&repo.head()?)?;
-        return normal_merge(&repo, &head_commit, &fetch_commit);
+        return normal_merge(repo, &head_commit, &fetch_commit);
     }
 
     Ok(true)

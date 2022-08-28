@@ -101,7 +101,7 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
 
                     let repo = Repository::open(repo_path).expect("Error opening repo");
                     let mut remote = repo
-                        .find_remote(body.remote.as_ref().map(|x| x.as_str()).unwrap_or("origin"))
+                        .find_remote(body.remote.as_deref().unwrap_or("origin"))
                         .expect("Remote not found");
 
                     let mut fo = git2::FetchOptions::new();
