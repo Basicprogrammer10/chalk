@@ -3,7 +3,7 @@ use std::sync::Arc;
 use afire::{Content, Method, Response, Server};
 use serde_json::{json, Value};
 
-use crate::{misc, App};
+use crate::{misc, App, Project};
 
 pub fn attach(server: &mut Server, app: Arc<App>) {
     server.route(Method::POST, "/app/info", move |req| {
@@ -22,22 +22,31 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
         let stderr = app.process.stderr.read();
         let stderr = String::from_utf8_lossy(&stderr);
 
-        // Get info on the process
-        let pid = app.process.process.lock().as_ref().unwrap().id() as i32;
-        let mem_info = procinfo::pid::statm(pid).unwrap();
-        let stats = procinfo::pid::stat(pid).unwrap();
-
         Response::new()
             .text(json!({
                 "name": app.name,
                 "status": app.status.read().json(),
-                "memory": mem_info.size,
-                "threads": stats.num_threads,
                 "output": {
                     "stdout": stdout,
                     "stderr": stderr,
-                }
+                },
+                "info": get_info(app)
             }))
             .content(Content::JSON)
     });
+}
+
+fn get_info(app: &Project) -> Option<Value> {
+    let i = app.process.process.lock();
+    let i = i.as_ref()?;
+
+    // Get info on the process
+    let pid = i.id() as i32;
+    let mem_info = procinfo::pid::statm(pid).ok()?;
+    let stats = procinfo::pid::stat(pid).ok()?;
+
+    Some(json!({
+        "memory": mem_info.size,
+        "threads": stats.num_threads,
+    }))
 }

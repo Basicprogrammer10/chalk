@@ -4,6 +4,10 @@ use std::path::PathBuf;
 use std::process::{self, Child, ChildStderr, ChildStdout, ExitStatus, Stdio};
 use std::sync::Arc;
 
+use nix::{
+    sys::signal::{self, Signal},
+    unistd::Pid,
+};
 use nonblock::NonBlockingReader;
 use parking_lot::{Mutex, RwLock};
 use serde_derive::{Deserialize, Serialize};
@@ -125,7 +129,7 @@ impl Project {
     pub fn start(&self) {
         let binary_path = self.project_path.join("binary");
 
-        if self.process.process.lock().is_some() {
+        if *self.status.read() == ProjectStatus::Running {
             self.app.log(
                 LogType::Error,
                 format!("Process already started `{}`", self.name),
@@ -142,6 +146,7 @@ impl Project {
         self.app
             .log(LogType::Info, format!("Starting `{}`", self.name));
         let mut child = process::Command::new(binary_path)
+            .current_dir(self.project_path.join("repo"))
             .args(&self.run_arguments)
             .envs(self.run_enviroment_vars.iter().cloned())
             .stdin(Stdio::null())
@@ -158,15 +163,14 @@ impl Project {
         *self.status.write() = ProjectStatus::Running;
     }
 
-    pub fn stop(&self) {
-        let mut process = self.process.process.lock();
-        if process.is_none() {
+    pub fn stop(&self, sig: Signal) {
+        let mut raw_process = self.process.process.lock();
+        if raw_process.is_none() {
             return;
         }
 
-        let process = process.as_mut().unwrap();
-        process.kill().unwrap();
-        self.poll();
+        let process = raw_process.as_mut().unwrap();
+        signal::kill(Pid::from_raw(process.id() as i32), sig).unwrap();
     }
 
     pub fn poll(&self) {
