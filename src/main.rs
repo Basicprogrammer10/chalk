@@ -17,7 +17,7 @@ fn main() {
     let app = Arc::new(App::new());
     app.log(LogType::Info, format!("Starting (v{})", VERSION));
 
-    // Init SIG(INT|TERM|KILL) handler
+    // Init SIG(INT|TERM|HUP) handler
     ctrlc::init(app.clone());
 
     // Load Projects

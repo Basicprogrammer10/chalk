@@ -5,7 +5,10 @@ use std::sync::Arc;
 
 use afire::{Content, Method, Response, Server};
 use flate2::read::GzDecoder;
-use git2::Repository;
+use git2::{
+    build::{CheckoutBuilder, RepoBuilder},
+    Oid, Repository,
+};
 use nix::sys::signal::Signal;
 use serde_derive::Deserialize;
 use serde_json::json;
@@ -18,13 +21,24 @@ use crate::{
 
 #[derive(Deserialize)]
 struct RequestData {
-    /// App Name
+    // == MISC ==
     name: String,
-
-    // Action info
     action: ActionType,
+
+    // == Stop action ==
     signal: Option<String>,
+
+    // == Update action ==
+    /// Binary data (BASE64(GZIP(RAW)))
     data: Option<String>,
+    /// Git origin (EX: origin)
+    remote: Option<String>,
+    /// Git branch to pull from
+    branch: Option<String>,
+    /// Commit / Tag to checkout
+    checkout: Option<String>,
+    /// Should merging be forced
+    force: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -79,10 +93,38 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
                         .expect("Error writing new binary");
                 }
 
+                // TODO: username - token
                 if let Some(i) = &project.config.git.repo {
-                    // TODO: username - token
-                    Repository::clone(i, project.project_path.join("repo"))
-                        .expect("Error cloneing repo");
+                    let branch = body.branch.expect("No Branch defined");
+                    // let checkout = body
+                    //     .checkout
+                    //     .map(|x| Oid::from_str(&x).expect("Invalid checkout id"));
+                    let repo_path = project.project_path.join("repo");
+
+                    let mut checkout = CheckoutBuilder::new();
+                    if body.force.unwrap_or(false) {
+                        checkout.force();
+                    }
+
+                    if !repo_path.exists() {
+                        let mut repo = RepoBuilder::new();
+                        repo.with_checkout(checkout);
+                        repo.clone(i, &repo_path).expect("Error cloneing repo");
+                    }
+
+                    let repo = Repository::open(repo_path).expect("Error opening repo");
+                    let mut remote = repo
+                        .find_remote(body.remote.as_ref().map(|x| x.as_str()).unwrap_or("origin"))
+                        .expect("Remote not found");
+
+                    let mut fo = git2::FetchOptions::new();
+                    fo.download_tags(git2::AutotagOption::All);
+                    remote.fetch(&[&branch], Some(&mut fo), None).unwrap();
+                    let fetch_head = repo.find_reference("FETCH_HEAD").unwrap();
+                    let fetch_commit = repo.reference_to_annotated_commit(&fetch_head).unwrap();
+                    if !misc::do_merge(&repo, &branch, fetch_commit).unwrap() {
+                        return misc::error_res("Merge conflicts o.o");
+                    }
                 }
             }
             ActionType::Reload => {

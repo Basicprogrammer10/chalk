@@ -137,7 +137,7 @@ impl Project {
         );
 
         let process = raw_process.as_mut().unwrap();
-        signal::kill(Pid::from_raw(process.id() as i32), sig).unwrap();
+        let _ = signal::kill(Pid::from_raw(process.id() as i32), sig);
     }
 
     pub fn poll(&self) {
