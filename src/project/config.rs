@@ -13,8 +13,9 @@ pub struct ProjectConfig {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ProjectRunConfig {
-    pub args: Vec<String>,
-    pub evars: HashMap<String, String>,
+    pub run_command: String,
+    pub arguments: Vec<String>,
+    pub enviroment_vars: HashMap<String, String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

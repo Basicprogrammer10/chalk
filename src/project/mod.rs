@@ -26,9 +26,6 @@ pub struct Project {
     /// app config
     pub config: ProjectConfig,
 
-    // /// Api Token (for externial requests)
-    // pub api_token: String,
-
     // /// Git repo info
     // pub git_info: Option<GitInfo>,
     //
@@ -50,12 +47,6 @@ pub struct Project {
     /// Lower level process stuff
     pub process: Process,
 
-    // /// Arguments to run process with
-    // pub run_arguments: Vec<String>,
-    //
-    // /// Enviroment varables to run process with
-    // pub run_enviroment_vars: Vec<(String, String)>,
-
     // == MISC ==
     /// Refrence to app
     app: Arc<App>,
@@ -76,13 +67,6 @@ pub struct Process {
 
     /// Process stderr
     pub stderr: RwLock<Vec<u8>>,
-}
-
-#[derive(Debug)]
-pub struct GitInfo {
-    pub repo: String,
-    pub username: Option<String>,
-    pub token: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -125,8 +109,8 @@ impl Project {
             .log(LogType::Info, format!("Starting `{}`", self.name));
         let mut child = process::Command::new(binary_path)
             .current_dir(self.project_path.join("repo"))
-            .args(&self.config.run.args)
-            .envs(&self.config.run.evars)
+            .args(&self.config.run.arguments)
+            .envs(&self.config.run.enviroment_vars)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -147,6 +131,11 @@ impl Project {
             return;
         }
 
+        self.app.log(
+            LogType::Info,
+            format!("Stopping `{}` with `{}`", self.name, sig),
+        );
+
         let process = raw_process.as_mut().unwrap();
         signal::kill(Pid::from_raw(process.id() as i32), sig).unwrap();
     }
@@ -166,6 +155,8 @@ impl Project {
             _ => {}
         };
 
+        // Process stdout / stderr
+        // This is nonblocking due to the `NonBlockingReader`
         self.process
             .stdout_reader
             .lock()
@@ -198,7 +189,7 @@ impl Project {
             app.log(LogType::Error, "App config file not found! (config.toml)");
             return None;
         }
-        let raw_config = fs::read_to_string(app_config).unwrap();
+        let raw_config = fs::read_to_string(app_config).expect("Error reading config file");
 
         // Load config
         let config = match toml::from_str::<ProjectConfig>(&raw_config) {
