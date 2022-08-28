@@ -1,5 +1,5 @@
 [package]
-name = "chalk-daemon"
+name = "chalk_daemon"
 authors = ["Connor Slade <connor@connorcode.com>"]
 version = "0.1.0"
 edition = "2021"
