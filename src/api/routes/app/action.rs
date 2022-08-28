@@ -7,7 +7,7 @@ use afire::{Content, Method, Response, Server};
 use flate2::read::GzDecoder;
 use git2::{
     build::{CheckoutBuilder, RepoBuilder},
-    Oid, Repository,
+    Repository,
 };
 use nix::sys::signal::Signal;
 use serde_derive::Deserialize;
@@ -21,7 +21,7 @@ use crate::{
 
 #[derive(Deserialize)]
 struct RequestData {
-    // == MISC ==
+    // == Required ==
     name: String,
     action: ActionType,
 
@@ -83,32 +83,19 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
                     return misc::error_res("App is still running");
                 }
 
-                if let Some(data) = body.data {
-                    let base64_dec = base64::decode(data).expect("`data` is not valid base64");
-                    let mut gzip_dec = GzDecoder::new(Cursor::new(base64_dec));
-
-                    let mut out = Vec::new();
-                    gzip_dec.read_to_end(&mut out).expect("Error decompressing");
-                    fs::write(project.project_path.join("binary"), out)
-                        .expect("Error writing new binary");
-                }
-
                 // TODO: username - token
                 if let Some(i) = &project.config.git.repo {
                     let branch = body.branch.expect("No Branch defined");
-                    // let checkout = body
-                    //     .checkout
-                    //     .map(|x| Oid::from_str(&x).expect("Invalid checkout id"));
                     let repo_path = project.project_path.join("repo");
 
-                    let mut checkout = CheckoutBuilder::new();
+                    let mut checkout_bld = CheckoutBuilder::new();
                     if body.force.unwrap_or(false) {
-                        checkout.force();
+                        checkout_bld.force();
                     }
 
                     if !repo_path.exists() {
                         let mut repo = RepoBuilder::new();
-                        repo.with_checkout(checkout);
+                        repo.with_checkout(checkout_bld);
                         repo.clone(i, &repo_path).expect("Error cloneing repo");
                     }
 
@@ -120,11 +107,26 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
                     let mut fo = git2::FetchOptions::new();
                     fo.download_tags(git2::AutotagOption::All);
                     remote.fetch(&[&branch], Some(&mut fo), None).unwrap();
-                    let fetch_head = repo.find_reference("FETCH_HEAD").unwrap();
+                    let fetch_head = match body.checkout {
+                        Some(i) => repo
+                            .resolve_reference_from_short_name(&i)
+                            .expect("Invalid refrence"),
+                        None => repo.find_reference("FETCH_HEAD").unwrap(),
+                    };
                     let fetch_commit = repo.reference_to_annotated_commit(&fetch_head).unwrap();
                     if !misc::do_merge(&repo, &branch, fetch_commit).unwrap() {
                         return misc::error_res("Merge conflicts o.o");
                     }
+                }
+
+                if let Some(data) = body.data {
+                    let base64_dec = base64::decode(data).expect("`data` is not valid base64");
+                    let mut gzip_dec = GzDecoder::new(Cursor::new(base64_dec));
+
+                    let mut out = Vec::new();
+                    gzip_dec.read_to_end(&mut out).expect("Error decompressing");
+                    fs::write(project.project_path.join("binary"), out)
+                        .expect("Error writing new binary");
                 }
             }
             ActionType::Reload => {
