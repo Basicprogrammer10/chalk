@@ -89,7 +89,7 @@ impl Project {
     }
 
     pub fn start(&self) {
-        let binary_path = self.project_path.join("binary");
+        let binary_path = self.project_path.join(&self.config.run.run_command);
 
         if *self.status.read() == ProjectStatus::Running {
             self.app.log(

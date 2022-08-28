@@ -1,3 +1,10 @@
+mod args;
+mod commands;
+
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+const GITHUB: &str = "https://github.com/Basicprogrammer10/chalk";
+
 fn main() {
-    println!("Hello, world!");
+    let (command, args) = args::from_env();
+    commands::run(command, args);
 }
