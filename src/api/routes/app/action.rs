@@ -79,8 +79,9 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
                         .expect("Error writing new binary");
                 }
 
-                if let Some(i) = &project.git_info {
-                    Repository::clone(&i.repo, project.project_path.join("repo"))
+                if let Some(i) = &project.config.git.repo {
+                    // TODO: username - token
+                    Repository::clone(i, project.project_path.join("repo"))
                         .expect("Error cloneing repo");
                 }
             }

@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::process::{self, Child, ChildStderr, ChildStdout, ExitStatus, Stdio};
@@ -10,10 +9,12 @@ use nix::{
 };
 use nonblock::NonBlockingReader;
 use parking_lot::{Mutex, RwLock};
-use serde_derive::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::{App, LogType};
+
+mod config;
+use config::ProjectConfig;
 
 type Reader<T> = Mutex<Option<NonBlockingReader<T>>>;
 
@@ -22,12 +23,15 @@ pub struct Project {
     /// The app friendly name
     pub name: String,
 
-    /// Api Token (for externial requests)
-    pub api_token: String,
+    /// app config
+    pub config: ProjectConfig,
 
-    /// Git repo info
-    pub git_info: Option<GitInfo>,
+    // /// Api Token (for externial requests)
+    // pub api_token: String,
 
+    // /// Git repo info
+    // pub git_info: Option<GitInfo>,
+    //
     /// The path to the app folder
     ///
     /// ```
@@ -46,28 +50,15 @@ pub struct Project {
     /// Lower level process stuff
     pub process: Process,
 
-    /// Arguments to run process with
-    pub run_arguments: Vec<String>,
-
-    /// Enviroment varables to run process with
-    pub run_enviroment_vars: Vec<(String, String)>,
+    // /// Arguments to run process with
+    // pub run_arguments: Vec<String>,
+    //
+    // /// Enviroment varables to run process with
+    // pub run_enviroment_vars: Vec<(String, String)>,
 
     // == MISC ==
     /// Refrence to app
     app: Arc<App>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct RawProjectConfig {
-    pub name: String,
-    pub api_token: String,
-
-    pub run_args: Vec<String>,
-    pub run_evars: HashMap<String, String>,
-
-    pub git_repo: Option<String>,
-    pub git_username: Option<String>,
-    pub git_token: Option<String>,
 }
 
 pub struct Process {
@@ -102,26 +93,13 @@ pub enum ProjectStatus {
 }
 
 impl Project {
-    fn from_raw(raw: RawProjectConfig, path: PathBuf, app: Arc<App>) -> Self {
-        let mut git_info = None;
-
-        if raw.git_repo.is_some() {
-            git_info = Some(GitInfo {
-                repo: raw.git_repo.unwrap(),
-                username: raw.git_username,
-                token: raw.git_token,
-            });
-        }
-
+    fn from_raw(raw: ProjectConfig, path: PathBuf, app: Arc<App>) -> Self {
         Self {
-            name: raw.name,
-            api_token: raw.api_token,
-            git_info,
+            name: raw.name.to_owned(),
+            config: raw,
             project_path: path,
             status: RwLock::new(ProjectStatus::Stoped),
             process: Process::new(),
-            run_arguments: raw.run_args,
-            run_enviroment_vars: raw.run_evars.into_iter().collect(),
             app,
         }
     }
@@ -147,8 +125,8 @@ impl Project {
             .log(LogType::Info, format!("Starting `{}`", self.name));
         let mut child = process::Command::new(binary_path)
             .current_dir(self.project_path.join("repo"))
-            .args(&self.run_arguments)
-            .envs(self.run_enviroment_vars.iter().cloned())
+            .args(&self.config.run.args)
+            .envs(&self.config.run.evars)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -223,7 +201,7 @@ impl Project {
         let raw_config = fs::read_to_string(app_config).unwrap();
 
         // Load config
-        let config = match toml::from_str::<RawProjectConfig>(&raw_config) {
+        let config = match toml::from_str::<ProjectConfig>(&raw_config) {
             Ok(i) => i,
             Err(e) => {
                 app.log(LogType::Error, format!("Invalid app config: {}", e));
