@@ -8,6 +8,8 @@ use crate::{App, VERSION};
 
 pub fn attach(server: &mut Server, app: Arc<App>) {
     server.route(Method::GET, "/status", move |_req| {
+        let uptime = app.uptime.duration_since(UNIX_EPOCH).unwrap().as_secs();
+
         // Statem Status
         let disk = sys_info::disk_info().expect("Error getting Disk info");
         let mem = sys_info::mem_info().expect("Error getting Memory info");
@@ -21,7 +23,7 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
         for i in app.projects.read().iter() {
             apps.push(json!({
                 "name": i.name,
-                "status": i.status.read().json()
+                "status": *i.status.read()
             }));
         }
 
@@ -38,6 +40,7 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
         Response::new()
             .text(json!({
                 "version": VERSION,
+                "uptime": uptime,
                 "system": {
                     "disk": {
                         "total": disk.total,

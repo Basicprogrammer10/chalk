@@ -9,7 +9,7 @@ pub fn from_env() -> (Commands, ArgMatches) {
         .subcommand_required(true)
         .author("Connor Slade")
         .version(VERSION)
-        .subcommand(
+        .subcommands([
             Command::new("version")
                 .about("Gets info on this cli program.")
                 .arg(
@@ -18,7 +18,15 @@ pub fn from_env() -> (Commands, ArgMatches) {
                         .long("basic")
                         .help("Reduces the infomation printed"),
                 ),
-        )
+            Command::new("status")
+                .about("Gets general infomation on the daemon")
+                .args([Arg::new("host")
+                    .takes_value(true)
+                    .short('d')
+                    .long("host")
+                    .help("The address of the daemon to connect to")
+                    .long_help("Defines the host +/ port of the daemon to connect to")]),
+        ])
         .get_matches();
     let m = m.subcommand().unwrap();
 

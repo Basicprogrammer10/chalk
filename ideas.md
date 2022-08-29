@@ -1,0 +1,1 @@
+- Have a global and per project api key so you can safely give action runners one without giving access to whole system

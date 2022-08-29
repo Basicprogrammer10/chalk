@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
-use std::process::{self, Child, ChildStderr, ChildStdout, ExitStatus, Stdio};
+use std::process::{self, Child, ChildStderr, ChildStdout, Stdio};
 use std::sync::Arc;
 
 use nix::{
@@ -9,7 +9,7 @@ use nix::{
 };
 use nonblock::NonBlockingReader;
 use parking_lot::{Mutex, RwLock};
-use serde_json::{json, Value};
+use serde_derive::Serialize;
 
 use crate::{App, LogType};
 
@@ -69,11 +69,12 @@ pub struct Process {
     pub stderr: RwLock<Vec<u8>>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Serialize, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
 pub enum ProjectStatus {
     Running,
     Stoped,
-    Crashed(ExitStatus),
+    Crashed(bool, Option<i32>),
 }
 
 impl Project {
@@ -151,7 +152,7 @@ impl Project {
         // Set App Status
         match process.try_wait().unwrap() {
             Some(x) if x.success() => *self.status.write() = ProjectStatus::Stoped,
-            Some(i) => *self.status.write() = ProjectStatus::Crashed(i),
+            Some(i) => *self.status.write() = ProjectStatus::Crashed(i.success(), i.code()),
             _ => {}
         };
 
@@ -230,18 +231,6 @@ impl Project {
 impl ProjectStatus {
     pub fn is_running(&self) -> bool {
         *self == ProjectStatus::Running
-    }
-
-    pub fn json(&self) -> Value {
-        let state = match self {
-            ProjectStatus::Running => "running",
-            ProjectStatus::Stoped => "stoped",
-            ProjectStatus::Crashed(i) => {
-                return json!({ "state": "crashed", "is_ok": i.success(), "code": i.code()});
-            }
-        };
-
-        json!({ "state": state })
     }
 }
 

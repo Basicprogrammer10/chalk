@@ -30,7 +30,7 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
         Response::new()
             .text(json!({
                 "name": app.name,
-                "status": app.status.read().json(),
+                "status": *app.status.read(),
                 "output": {
                     "stdout": stdout,
                     "stderr": stderr,

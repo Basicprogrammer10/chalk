@@ -1,5 +1,7 @@
 mod args;
 mod commands;
+mod error;
+mod misc;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const GITHUB: &str = "https://github.com/Basicprogrammer10/chalk";
