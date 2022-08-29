@@ -2,8 +2,8 @@ use std::fmt::{self, Display, Formatter};
 use std::fs;
 use std::process;
 use std::sync::atomic::AtomicU64;
-use std::time::SystemTime;
 
+use chrono::Utc;
 use colored::Colorize;
 use directories::ProjectDirs;
 use parking_lot::RwLock;
@@ -14,7 +14,7 @@ use crate::Project;
 pub struct App {
     pub app_dir: ProjectDirs,
     pub config: Config,
-    pub uptime: SystemTime,
+    pub uptime: i64,
 
     pub projects: RwLock<Vec<Project>>,
     pub logs: RwLock<Vec<Log>>,
@@ -23,7 +23,7 @@ pub struct App {
 
 pub struct Log {
     pub log_type: LogType,
-    pub time: SystemTime,
+    pub time: i64,
     pub data: String,
 }
 
@@ -55,7 +55,7 @@ impl App {
         Self {
             app_dir,
             config,
-            uptime: SystemTime::now(),
+            uptime: Utc::now().timestamp(),
 
             projects: RwLock::new(Vec::new()),
             logs: RwLock::new(Vec::new()),
@@ -67,7 +67,7 @@ impl App {
         self.logs.write().push(Log {
             log_type,
             data: text.as_ref().to_string(),
-            time: SystemTime::now(),
+            time: Utc::now().timestamp(),
         });
 
         // DEBUG!

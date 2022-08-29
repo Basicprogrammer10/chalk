@@ -32,10 +32,14 @@ pub fn tc<T, E>(case: bool, value: T, a: impl Fn(T) -> E, b: impl Fn(T) -> E) ->
     b(value)
 }
 
-pub fn deamon_req(host: &str, path: &str) -> Result<Value, ActionError>
+pub fn deamon_req(host: &str, path: &str, body: Option<Value>) -> Result<Value, ActionError>
 where
 {
-    let req = ureq::get(&format!("{}{}", host, path)).call()?;
+    let req = ureq::get(&format!("{}{}", host, path));
+    let req = match body {
+        Some(i) => req.send_string(&i.to_string())?,
+        None => req.call()?,
+    };
     let data = req.into_string()?;
     let json = serde_json::from_str(&data)?;
 
@@ -74,7 +78,7 @@ pub fn host_stuff(args: &ArgMatches) -> Option<String> {
     };
 
     // Verify Host
-    if let Err(i) = deamon_req(&host, "ping") {
+    if let Err(i) = deamon_req(&host, "ping", None) {
         match i {
             ActionError::Read(e) => println!("{}\n{}", "[-] Error connecting to host".red(), e),
             ActionError::Parse(e) => println!("{}\n{}", "[-] Error reading from host".red(), e),

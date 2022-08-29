@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::time::UNIX_EPOCH;
 
 use afire::{Content, Method, Response, Server};
 use serde_json::json;
@@ -8,8 +7,6 @@ use crate::{App, VERSION};
 
 pub fn attach(server: &mut Server, app: Arc<App>) {
     server.route(Method::GET, "/status", move |_req| {
-        let uptime = app.uptime.duration_since(UNIX_EPOCH).unwrap().as_secs();
-
         // Statem Status
         let disk = sys_info::disk_info().expect("Error getting Disk info");
         let mem = sys_info::mem_info().expect("Error getting Memory info");
@@ -33,14 +30,14 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
             logs.push(json!({
                 "type": i.log_type.to_string(),
                 "text": i.data,
-                "time": i.time.duration_since(UNIX_EPOCH).unwrap().as_secs()
+                "time": i.time
             }));
         }
 
         Response::new()
             .text(json!({
                 "version": VERSION,
-                "uptime": uptime,
+                "uptime": app.uptime,
                 "system": {
                     "disk": {
                         "total": disk.total,

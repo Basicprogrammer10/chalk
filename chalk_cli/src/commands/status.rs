@@ -1,6 +1,6 @@
 use std::fmt::{self, Display, Formatter};
-use std::time::{SystemTime, UNIX_EPOCH};
 
+use chrono::Utc;
 use clap::ArgMatches;
 use colored::Colorize;
 use serde::Deserialize;
@@ -44,16 +44,12 @@ pub fn run(args: ArgMatches) {
         None => return,
     };
 
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-
     // Get info from daemon
-    let info = misc::deamon_req(&host, "status").unwrap();
+    let info = misc::deamon_req(&host, "status", None).unwrap();
     let info = StatusInfo::deserialize(info).unwrap();
 
     // Extrapalate from data
+    let now = Utc::now().timestamp() as u64;
     let running = app_count(&info.apps, ProjectState::Running);
     let stoped = app_count(&info.apps, ProjectState::Stoped);
     let status = SystemStatus::from(&info);
