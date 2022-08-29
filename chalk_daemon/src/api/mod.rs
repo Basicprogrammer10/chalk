@@ -22,7 +22,7 @@ fn _start(app: Arc<App>) {
     // Change error handler to use json
     let error_app = app.clone();
     server.error_handler(move |_req, err| {
-        error_app.log(LogType::Error, format!("WEB: {}", err));
+        error_app.log(LogType::Error, format!("[WEB] {}", err));
         Response::new()
             .status(500)
             .text(json!({ "error": err }))

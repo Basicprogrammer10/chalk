@@ -24,7 +24,6 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
             .rev()
             .skip(body.page * body.lines)
             .take(body.lines)
-            .rev()
         {
             out.push(json!({
                 "type": i.log_type.to_string(),
