@@ -13,19 +13,20 @@ struct RequestData {
 }
 
 pub fn attach(server: &mut Server, app: Arc<App>) {
-    server.route(Method::GET, "/logs", move |req| {
+    server.route(Method::POST, "/logs", move |req| {
         let body = serde_json::from_str::<RequestData>(&req.body_string().unwrap()).unwrap();
-        let end = app.logs.read().len() <= (body.page + 1) * body.lines;
+        let logs = app.logs.read();
+        let start = logs.len() <= (body.page + 1) * body.lines;
 
-        let mut logs = Vec::new();
-        for i in app
-            .logs
-            .read()
+        let mut out = Vec::new();
+        for i in logs
             .iter()
+            .rev()
             .skip(body.page * body.lines)
             .take(body.lines)
+            .rev()
         {
-            logs.push(json!({
+            out.push(json!({
                 "type": i.log_type.to_string(),
                 "text": i.data,
                 "time": i.time
@@ -33,7 +34,7 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
         }
 
         Response::new()
-            .text(json!({ "logs": logs, "end": end }))
+            .text(json!({ "logs": out, "start": start }))
             .content(Content::JSON)
     });
 }

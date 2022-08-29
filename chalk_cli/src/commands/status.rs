@@ -45,7 +45,7 @@ pub fn run(args: ArgMatches) {
     };
 
     // Get info from daemon
-    let info = misc::deamon_req(&host, "status", None).unwrap();
+    let info = misc::deamon_req("GET", &host, "status", None).unwrap();
     let info = StatusInfo::deserialize(info).unwrap();
 
     // Extrapalate from data

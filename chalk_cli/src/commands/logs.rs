@@ -12,7 +12,7 @@ struct LogsInfo {
     #[serde(skip)]
     page: usize,
     logs: Vec<Log>,
-    end: bool,
+    start: bool,
 }
 
 #[derive(Deserialize)]
@@ -23,7 +23,7 @@ struct Log {
     time: i64,
 }
 
-#[derive(Deserialize, PartialEq)]
+#[derive(Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LogType {
     Error,
@@ -32,15 +32,9 @@ pub enum LogType {
 
 pub fn run(args: ArgMatches) {
     // Get args
-    let basic = args.contains_id("basic");
-    let lines = args
-        .get_one::<String>("lines")
-        .map(|x| x.parse::<usize>().unwrap())
-        .unwrap_or(20);
-    let page = args
-        .get_one::<String>("start_page")
-        .map(|x| x.parse::<usize>().unwrap())
-        .unwrap_or(0);
+    let is_basic = args.contains_id("basic");
+    let lines = *args.get_one::<usize>("lines").unwrap_or(&20);
+    let page = *args.get_one::<usize>("start_page").unwrap_or(&0);
 
     // Get host
     let host = match misc::host_stuff(&args) {
@@ -48,17 +42,39 @@ pub fn run(args: ArgMatches) {
         None => return,
     };
 
-    if basic {
-        let info =
-            misc::deamon_req(&host, "logs", Some(json!({"page": page, "lines": lines}))).unwrap();
-        let info = LogsInfo::deserialize(info).unwrap();
-
-        for i in info.logs {
-            let time = Local.timestamp(i.time, 0);
-            let line = format!("{} {}", time.format("[%Y-%m-%d] [%H:%M:%S]"), i.text);
-            println!("{}", i.log_type.colorize(line));
-        }
+    if is_basic {
+        basic(host, lines, page);
         return;
+    }
+}
+
+fn basic(host: String, lines: usize, page: usize) {
+    let info = misc::deamon_req(
+        "POST",
+        &host,
+        "logs",
+        Some(json!({"page": page, "lines": lines})),
+    )
+    .unwrap();
+    let info = LogsInfo::deserialize(info).unwrap();
+
+    if info.logs.is_empty() {
+        println!("{}", "(EMPTY PAGE)".reversed());
+        return;
+    }
+
+    if info.start {
+        println!("{}", "(END)".reversed());
+    }
+
+    for i in info.logs {
+        let time = Local.timestamp(i.time, 0);
+        let line = format!("{} {}", time.format("[%Y-%m-%d] [%H:%M:%S]"), i.text);
+        println!("{}", i.log_type.colorize(line));
+    }
+
+    if page == 0 {
+        println!("{}", "(START)".reversed());
     }
 }
 
