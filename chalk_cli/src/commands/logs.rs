@@ -12,7 +12,6 @@ use crossterm::{
         disable_raw_mode, enable_raw_mode, size, Clear, ClearType, DisableLineWrap, EnableLineWrap,
         EnterAlternateScreen, LeaveAlternateScreen,
     },
-    QueueableCommand,
 };
 use serde::Deserialize;
 use serde_derive::Deserialize;
@@ -25,7 +24,7 @@ struct LogsInfo {
     #[serde(skip)]
     page: usize,
     logs: Vec<Log>,
-    start: bool,
+    end: bool,
 }
 
 #[derive(Deserialize)]
@@ -57,19 +56,19 @@ pub fn run(args: ArgMatches) {
         None => return,
     };
 
-    let info = get_lines(&host, page, lines);
-
     if is_basic {
-        basic(info);
+        basic(get_lines(&host, page, lines, true, None));
         return;
     }
 
-    let mut end = false;
-    let mut line = 0;
     let mut loaded_lines = Vec::new();
+    let info = get_lines(&host, page, lines, false, None);
+    let mut end = info.end;
+    let mut line: usize = 0;
     loaded_lines.extend(info.logs);
-    let mut stdout = stdout();
+    let end_time = loaded_lines[0].time;
 
+    let mut stdout = stdout();
     enable_raw_mode().unwrap();
     execute!(stdout, Hide, DisableLineWrap, EnterAlternateScreen).unwrap();
 
@@ -87,20 +86,11 @@ pub fn run(args: ArgMatches) {
             .unwrap();
         }
 
-        if end && line + lines == loaded_lines.len() {
-            queue!(
-                stdout,
-                Print("(START)".reversed()),
-                MoveToColumn(0),
-                MoveDown(1)
-            )
-            .unwrap();
-        }
-
-        for i in loaded_lines
-            .iter()
-            .skip(line)
-            .take(t(line == 0, height - 1, height))
+        for i in
+            loaded_lines
+                .iter()
+                .skip(line.saturating_sub(1))
+                .take(t(line == 0, height - 1, height))
         {
             let time = Local.timestamp(i.time, 0);
             let line = format!("{} {}", time.format("[%Y-%m-%d] [%H:%M:%S]"), i.text);
@@ -113,42 +103,57 @@ pub fn run(args: ArgMatches) {
             .unwrap();
         }
 
+        if line + height > loaded_lines.len() + 1 {
+            queue!(
+                stdout,
+                Print("(START)".reversed()),
+                MoveToColumn(0),
+                MoveDown(1)
+            )
+            .unwrap();
+        }
+
         stdout.flush().unwrap();
 
-        if let Event::Key(event) = read().unwrap() {
-            match event.code {
-                KeyCode::Up => line = line.saturating_sub(1),
-                KeyCode::Down => {
-                    line = line
-                        .saturating_add(1)
-                        .min(loaded_lines.len().saturating_sub(lines - 1))
+        loop {
+            if let Event::Key(event) = read().unwrap() {
+                let old_line = line;
+                match event.code {
+                    KeyCode::Up => line = line.saturating_sub(1),
+                    KeyCode::Down => line = line.saturating_add(1),
+                    KeyCode::Char('q') => break 'main,
+                    _ => {}
                 }
-                KeyCode::Char('q') => break 'main,
-                _ => {}
+
+                line = line.min(loaded_lines.len() - height + 2);
+                if line != old_line {
+                    break;
+                }
             }
         }
 
         if lines + line > (page + 1) * lines && !end {
             page += 1;
-            let info = get_lines(&host, page, lines);
-            end = end || info.logs.len() < lines;
+            let info = get_lines(&host, page, lines, false, Some(end_time));
+            end = end || info.end;
             loaded_lines.extend(info.logs);
         }
     }
 
     execute!(stdout, Show, EnableLineWrap, LeaveAlternateScreen).unwrap();
+    disable_raw_mode().unwrap();
 }
 
-fn get_lines(host: &str, page: usize, lines: usize) -> LogsInfo {
+fn get_lines(host: &str, page: usize, lines: usize, rev: bool, time: Option<i64>) -> LogsInfo {
     let info = misc::deamon_req(
         "POST",
-        &host,
+        host,
         "logs",
-        Some(json!({"page": page, "lines": lines})),
+        Some(json!({"page": page, "lines": lines, "end_time": time, "rev": rev})),
     )
-    .unwrap();
+    .expect("Error getting data");
 
-    LogsInfo::deserialize(info).unwrap()
+    LogsInfo::deserialize(info).expect("Invalid data fetched")
 }
 
 fn basic(info: LogsInfo) {
@@ -157,7 +162,7 @@ fn basic(info: LogsInfo) {
         return;
     }
 
-    if info.start {
+    if info.end {
         println!("{}", "(END)".reversed());
     }
 
