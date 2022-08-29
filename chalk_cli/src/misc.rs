@@ -13,6 +13,25 @@ const TIME_UNITS: &[(&str, u16)] = &[
     ("month", 12),
     ("year", 0),
 ];
+
+// == MISC ==
+
+pub fn t<T>(case: bool, a: T, b: T) -> T {
+    if case {
+        return a;
+    }
+
+    b
+}
+
+pub fn tc<T, E>(case: bool, value: T, a: impl Fn(T) -> E, b: impl Fn(T) -> E) -> E {
+    if case {
+        return a(value);
+    }
+
+    b(value)
+}
+
 pub fn deamon_req(host: &str, path: &str) -> Result<Value, ActionError>
 where
 {
@@ -43,8 +62,7 @@ pub fn format_elapsed(secs: u64) -> String {
 pub fn host_stuff(args: &ArgMatches) -> Option<String> {
     // Get host
     let host = match parse_host(
-        &args
-            .get_one::<String>("host")
+        args.get_one::<String>("host")
             .map(|x| &x[..])
             .unwrap_or("http://localhost"),
     ) {
@@ -56,7 +74,7 @@ pub fn host_stuff(args: &ArgMatches) -> Option<String> {
     };
 
     // Verify Host
-    if let Err(i) = deamon_req(&host, "/ping") {
+    if let Err(i) = deamon_req(&host, "ping") {
         match i {
             ActionError::Read(e) => println!("{}\n{}", "[-] Error connecting to host".red(), e),
             ActionError::Parse(e) => println!("{}\n{}", "[-] Error reading from host".red(), e),

@@ -2,14 +2,14 @@ use std::io;
 
 #[derive(Debug)]
 pub enum ActionError {
-    Connect(ureq::Error),
+    Connect(Box<ureq::Error>),
     Read(io::Error),
     Parse(serde_json::Error),
 }
 
 impl From<ureq::Error> for ActionError {
     fn from(from: ureq::Error) -> Self {
-        Self::Connect(from)
+        Self::Connect(Box::new(from))
     }
 }
 

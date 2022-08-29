@@ -5,9 +5,8 @@ use clap::ArgMatches;
 use colored::Colorize;
 use serde::Deserialize;
 use serde_derive::Deserialize;
-use serde_json::Value;
 
-use crate::{error::ActionError, misc};
+use crate::misc::{self, t, tc};
 
 #[derive(Deserialize)]
 struct StatusInfo {
@@ -51,44 +50,65 @@ pub fn run(args: ArgMatches) {
         .as_secs();
 
     // Get info from daemon
-    let info = misc::deamon_req(&host, "/status").unwrap();
+    let info = misc::deamon_req(&host, "status").unwrap();
     let info = StatusInfo::deserialize(info).unwrap();
 
     // Extrapalate from data
     let running = app_count(&info.apps, ProjectState::Running);
     let stoped = app_count(&info.apps, ProjectState::Stoped);
     let status = SystemStatus::from(&info);
+    let total = info.apps.len();
 
     // Display it fancaly (like systemctl)
+    // ● localhost:3401 (v0.1.0)
+    //   Status: (All good, Degraded, Yikes!)
+    //    Since: {} (mins | hours | days | ...)
+    //  Running: {}
+    //   Stoped: {} [{}]
+    //
+    //  [┬] Projects ({})
+    //   └ ...
+
     println!(
         "{} {} {}",
         status.dot().bold(),
         host.magenta().bold(),
         format!("(v{})", info.version).cyan().bold()
     );
-    println!("{}  {}", "Status:".blue(), status);
+    println!("  {} {}", "Status:".blue(), status);
     println!(
-        "{}  {}",
+        "  {} {}",
         "Uptime:".blue(),
         misc::format_elapsed(now.saturating_sub(info.uptime)).magenta()
     );
-    println!("{} {}", "Running:".blue(), running.to_string().magenta());
+    println!(" {} {}", "Running:".blue(), running.to_string().magenta());
     println!(
-        "{}  {} {}",
+        "  {} {} {}",
         "Stoped:".blue(),
         stoped.to_string().magenta(),
-        format!("[{}]", info.apps.len() - running - stoped).red()
+        format!("[{}]", total - running - stoped).red()
     );
 
-    // ● localhost:3401 (v0.1.0)
-    // Status: (All good, Degraded, Yikes!)
-    // Since: {} (mins | hours | days | ...)
-    // Running: {}
-    // Stoped: {} [{}]
-    //
-    // Projects ({})
-    // |
-    // ...
+    println!("\n {}┬{}", "[".blue(), "] Projects".blue());
+    for (i, e) in info.apps.iter().enumerate() {
+        println!(
+            "  {} {} {}",
+            t(i + 1 == total, "└", "├"),
+            e.status.colorize(&e.name),
+            tc(
+                e.code.is_some(),
+                (),
+                |_| tc(
+                    e.is_ok.unwrap_or(false),
+                    format!("({})", e.code.unwrap()),
+                    |x| x.yellow(),
+                    |x| x.red()
+                )
+                .to_string(),
+                |_| "".to_string()
+            )
+        );
+    }
 }
 
 fn app_count(apps: &[Project], state: ProjectState) -> usize {
@@ -103,6 +123,15 @@ impl ProjectState {
             ProjectState::Stoped => 1,
             ProjectState::Crashed(_, _) => 2,
         }
+    }
+
+    fn colorize(&self, inp: &str) -> String {
+        match self {
+            Self::Running => inp.green(),
+            Self::Stoped => inp.yellow(),
+            Self::Crashed(_, _) => inp.red(),
+        }
+        .to_string()
     }
 }
 
