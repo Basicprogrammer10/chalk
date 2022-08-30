@@ -1,1 +1,4 @@
 - Have a global and per project api key so you can safely give action runners one without giving access to whole system
+- Automaticly save logs info files (by date?) on a timer
+- Loading spinner while waiting on a request
+- Nice error handling in CLI
