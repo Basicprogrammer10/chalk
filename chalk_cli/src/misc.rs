@@ -42,11 +42,20 @@ where
 {
     let req = ureq::request(method, &format!("{}{}", host, path));
     let req = match body {
-        Some(i) => req.send_string(&i.to_string())?,
-        None => req.call()?,
+        Some(i) => req.send_string(&i.to_string()),
+        None => req.call(),
+    };
+    let req = match req {
+        Ok(res) => res,
+        Err(Error::Status(code, response)) => res,
+        Err(e) => return Err(ActionError::Connect(Box::new(e))),
     };
     let data = req.into_string()?;
-    let json = serde_json::from_str(&data)?;
+    let json = serde_json::from_str::<Value>(&data)?;
+
+    if let Some(i) = json.get("error") {
+        println!("{}", format!("[-] {}", i).red());
+    }
 
     Ok(json)
 }

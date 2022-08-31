@@ -4,7 +4,7 @@ use clap::{value_parser, Arg, ArgMatches, Command};
 
 use crate::{commands::Commands, VERSION};
 
-pub fn from_env() -> (Commands, ArgMatches) {
+pub fn from_env() -> Commands {
     let host = Arg::new("host")
         .takes_value(true)
         .short('d')
@@ -29,7 +29,7 @@ pub fn from_env() -> (Commands, ArgMatches) {
                 .arg(&host),
             Command::new("logs")
                 .about("Lets you view a daemons logs")
-                .arg(host)
+                .arg(&host)
                 .args([
                     Arg::new("basic")
                         .short('b')
@@ -48,9 +48,16 @@ pub fn from_env() -> (Commands, ArgMatches) {
                         .long("lines")
                         .help("Defines the number of lines to load"),
                 ]),
+            // Command::new("load").about("Loads new projects").arg(host),
+            Command::new("app")
+                .about("Commands that interact with a daemons app")
+                .subcommand_required(true)
+                .subcommands([Command::new("info")
+                    .about("Gets info on a app")
+                    .arg(host)
+                    .arg(Arg::new("app").required(true))]),
         ])
         .get_matches();
-    let m = m.subcommand().unwrap();
 
-    (Commands::from_str(m.0).unwrap(), m.1.to_owned())
+    Commands::new(m.subcommand().unwrap())
 }
