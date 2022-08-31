@@ -1,22 +1,29 @@
 use std::sync::{atomic::Ordering, Arc};
 
 use afire::{Content, Method, Response, Server};
+use serde_derive::Deserialize;
 use serde_json::{json, Value};
 
-use crate::{misc, App, Project};
+use crate::{
+    misc::{self, ValadateType},
+    App, Project,
+};
+
+#[derive(Deserialize)]
+struct RequestData {
+    token: String,
+    name: String,
+}
 
 pub fn attach(server: &mut Server, app: Arc<App>) {
-    server.route(Method::POST, "/app/info", move |req| {
-        let body = serde_json::from_str::<Value>(&String::from_utf8_lossy(&req.body))
-            .expect("Invalid Json");
-        let app_name = body
-            .get("name")
-            .expect("No `name`")
-            .as_str()
-            .expect("`name` is not a string");
+    server.route(Method::GET, "/app/info", move |req| {
+        let body = serde_json::from_str::<RequestData>(&req.body_string().unwrap()).unwrap();
+        if !ValadateType::Scoped(body.name.to_owned()).valadate(app.clone(), body.token) {
+            return misc::error_res("Invalid Token");
+        }
 
         let projects = app.projects.read();
-        let app = match projects.iter().find(|x| x.name == app_name) {
+        let app = match projects.iter().find(|x| x.name == body.name) {
             Some(i) => i,
             None => return misc::error_res("Invalid App"),
         };

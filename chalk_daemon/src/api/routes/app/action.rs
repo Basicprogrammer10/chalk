@@ -14,7 +14,7 @@ use serde_derive::Deserialize;
 use serde_json::json;
 
 use crate::{
-    misc,
+    misc::{self, ValadateType},
     project::{Project, ProjectStatus},
     App,
 };
@@ -22,6 +22,7 @@ use crate::{
 #[derive(Deserialize)]
 struct RequestData {
     // == Required ==
+    token: String,
     name: String,
     action: ActionType,
 
@@ -52,6 +53,9 @@ enum ActionType {
 pub fn attach(server: &mut Server, app: Arc<App>) {
     server.route(Method::POST, "/app/action", move |req| {
         let body = serde_json::from_str::<RequestData>(&req.body_string().unwrap()).unwrap();
+        if !ValadateType::Scoped(body.name.to_owned()).valadate(app.clone(), body.token) {
+            return misc::error_res("Invalid Token");
+        }
 
         let projects = app.projects.read();
         let project = match projects.iter().find(|x| x.name == body.name) {

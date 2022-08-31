@@ -1,9 +1,15 @@
+use std::sync::Arc;
+
 use git2::Repository;
 use std::thread;
 use std::time::{Duration, Instant};
 
 use afire::{Content, Response};
 use serde_json::json;
+
+use crate::app::App;
+
+// == Timer ==
 
 pub struct Timer {
     /// MS per loop
@@ -34,7 +40,54 @@ impl Timer {
     }
 }
 
-// Git stuff
+// == API Auth ==
+
+pub enum ValadateType {
+    /// Requires the global token
+    Global,
+
+    /// Requires a scoped token
+    Scoped(String),
+
+    /// Requires any valid token (project ot global)
+    Any,
+}
+
+impl ValadateType {
+    pub fn valadate(&self, app: Arc<App>, token: String) -> bool {
+        let is_global = token == app.config.api.token;
+        match self {
+            ValadateType::Global => is_global,
+            ValadateType::Scoped(project) => {
+                app.projects
+                    .read()
+                    .iter()
+                    .find(|x| &x.name == project)
+                    .map(|x| x.config.api_token.to_owned())
+                    == Some(token)
+            }
+            ValadateType::Any => {
+                is_global
+                    || app
+                        .projects
+                        .read()
+                        .iter()
+                        .any(|x| x.config.api_token == token)
+            }
+        }
+    }
+}
+
+// == Misc Functions ==
+
+pub fn error_res<T: AsRef<str>>(err: T) -> Response {
+    Response::new()
+        .status(400)
+        .text(json!({"error": err.as_ref()}))
+        .content(Content::JSON)
+}
+
+// == Git stuff ==
 // Modified from https://github.com/rust-lang/git2-rs examples
 
 pub fn do_merge<'a>(
@@ -124,12 +177,4 @@ fn normal_merge(
 
     repo.checkout_head(None)?;
     Ok(true)
-}
-
-// Misc Functions
-pub fn error_res<T: AsRef<str>>(err: T) -> Response {
-    Response::new()
-        .status(400)
-        .text(json!({"error": err.as_ref()}))
-        .content(Content::JSON)
 }

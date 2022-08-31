@@ -4,10 +4,14 @@ use afire::{Content, Method, Response, Server};
 use serde_derive::Deserialize;
 use serde_json::json;
 
-use crate::App;
+use crate::{
+    misc::{self, ValadateType},
+    App,
+};
 
 #[derive(Deserialize)]
 struct RequestData {
+    token: String,
     page: usize,
     lines: usize,
     end_time: Option<i64>,
@@ -17,6 +21,10 @@ struct RequestData {
 pub fn attach(server: &mut Server, app: Arc<App>) {
     server.route(Method::POST, "/logs", move |req| {
         let body = serde_json::from_str::<RequestData>(&req.body_string().unwrap()).unwrap();
+        if !ValadateType::Global.valadate(app.clone(), body.token) {
+            return misc::error_res("Invalid Token");
+        }
+
         let logs = app.logs.read();
         let filterd = logs
             .iter()

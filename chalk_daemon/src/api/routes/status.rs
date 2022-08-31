@@ -1,12 +1,26 @@
 use std::sync::Arc;
 
 use afire::{Content, Method, Response, Server};
+use serde_derive::Deserialize;
 use serde_json::json;
 
-use crate::{App, VERSION};
+use crate::{
+    misc::{self, ValadateType},
+    App, VERSION,
+};
+
+#[derive(Deserialize)]
+struct RequestData {
+    token: String,
+}
 
 pub fn attach(server: &mut Server, app: Arc<App>) {
-    server.route(Method::GET, "/status", move |_req| {
+    server.route(Method::GET, "/status", move |req| {
+        let body = serde_json::from_str::<RequestData>(&req.body_string().unwrap()).unwrap();
+        if !ValadateType::Global.valadate(app.clone(), body.token) {
+            return misc::error_res("Invalid Token");
+        }
+
         // Statem Status
         let disk = sys_info::disk_info().expect("Error getting Disk info");
         let mem = sys_info::mem_info().expect("Error getting Memory info");
