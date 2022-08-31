@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{atomic::Ordering, Arc};
 
 use afire::{Content, Method, Response, Server};
 use serde_json::{json, Value};
@@ -53,5 +53,6 @@ fn get_info(app: &Project) -> Option<Value> {
     Some(json!({
         "memory": mem_info.size,
         "threads": stats.num_threads,
+        "uptime": app.process.uptime.load(Ordering::Relaxed)
     }))
 }

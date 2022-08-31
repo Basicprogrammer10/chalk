@@ -1,8 +1,10 @@
 use std::fs;
 use std::path::PathBuf;
 use std::process::{self, Child, ChildStderr, ChildStdout, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
+use chrono::Utc;
 use nix::{
     sys::signal::{self, Signal},
     unistd::Pid,
@@ -53,6 +55,9 @@ pub struct Project {
 }
 
 pub struct Process {
+    /// Start Timestamp
+    pub uptime: AtomicU64,
+
     /// Process handle for polling status and such
     pub process: Mutex<Option<Child>>,
 
@@ -124,6 +129,9 @@ impl Project {
             Some(NonBlockingReader::from_fd(child.stderr.take().unwrap()).unwrap());
         *self.process.process.lock() = Some(child);
         *self.status.write() = ProjectStatus::Running;
+        self.process
+            .uptime
+            .store(Utc::now().timestamp() as u64, Ordering::Relaxed);
     }
 
     pub fn stop(&self, sig: Signal) {
@@ -149,13 +157,6 @@ impl Project {
 
         let process = process.as_mut().unwrap();
 
-        // Set App Status
-        match process.try_wait().unwrap() {
-            Some(x) if x.success() => *self.status.write() = ProjectStatus::Stoped,
-            Some(i) => *self.status.write() = ProjectStatus::Crashed(i.success(), i.code()),
-            _ => {}
-        };
-
         // Process stdout / stderr
         // This is nonblocking due to the `NonBlockingReader`
         self.process
@@ -173,6 +174,18 @@ impl Project {
             .unwrap()
             .read_available(self.process.stderr.write().as_mut())
             .unwrap();
+
+        // Set App Status
+        if let Some(i) = process.try_wait().unwrap() {
+            self.process.uptime.store(0, Ordering::Relaxed);
+
+            if i.success() {
+                *self.status.write() = ProjectStatus::Stoped;
+                return;
+            }
+
+            *self.status.write() = ProjectStatus::Crashed(i.success(), i.code())
+        }
     }
 
     pub fn load_project(path: PathBuf, app: Arc<App>) -> Option<Project> {
@@ -237,6 +250,7 @@ impl ProjectStatus {
 impl Process {
     pub fn new() -> Self {
         Self {
+            uptime: AtomicU64::new(0),
             process: Mutex::new(None),
             stdout_reader: Mutex::new(None),
             stderr_reader: Mutex::new(None),

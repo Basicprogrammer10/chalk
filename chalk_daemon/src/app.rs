@@ -70,7 +70,7 @@ impl App {
             time: Utc::now().timestamp(),
         });
 
-        // DEBUG!
+        // DEBUG!?
         if log_type == LogType::Error {
             println!("{}", text.as_ref().red());
             return;
