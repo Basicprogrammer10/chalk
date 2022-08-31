@@ -3,12 +3,20 @@ use clap::{value_parser, Arg, Command};
 use crate::{commands::Commands, VERSION};
 
 pub fn from_env() -> Commands {
-    let host = Arg::new("host")
-        .takes_value(true)
-        .short('d')
-        .long("host")
-        .help("The address of the daemon to connect to")
-        .long_help("Defines the host +/ port of the daemon to connect to");
+    let base = [
+        Arg::new("host")
+            .takes_value(true)
+            .short('d')
+            .long("host")
+            .help("The address of the daemon to connect to")
+            .long_help("Defines the host +/ port of the daemon to connect to"),
+        Arg::new("token")
+            .takes_value(true)
+            .short('t')
+            .long("token")
+            .help("The token to use for request"),
+    ];
+
     let m = Command::new("chalk")
         .subcommand_required(true)
         .author("Connor Slade")
@@ -24,10 +32,10 @@ pub fn from_env() -> Commands {
                 ),
             Command::new("status")
                 .about("Gets general infomation on the daemon")
-                .arg(&host),
+                .args(&base),
             Command::new("logs")
                 .about("Lets you view a daemons logs")
-                .arg(&host)
+                .args(&base)
                 .args([
                     Arg::new("basic")
                         .short('b')
@@ -52,7 +60,7 @@ pub fn from_env() -> Commands {
                 .subcommand_required(true)
                 .subcommands([Command::new("info")
                     .about("Gets info on a app")
-                    .arg(host)
+                    .args(&base)
                     .arg(Arg::new("app").required(true))]),
         ])
         .get_matches();

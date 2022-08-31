@@ -5,6 +5,7 @@ use clap::ArgMatches;
 use colored::Colorize;
 use serde::Deserialize;
 use serde_derive::Deserialize;
+use serde_json::json;
 
 use crate::misc::{self, t, tc};
 
@@ -38,14 +39,23 @@ pub enum ProjectState {
 }
 
 pub fn run(args: ArgMatches) {
+    // Get token
+    let token = match misc::get_token(&args) {
+        Some(i) => i,
+        None => {
+            println!("{}", "[-] No token defined!".red());
+            return;
+        }
+    };
+
     // Get host
-    let host = match misc::host_stuff(&args) {
+    let host = match misc::host_stuff(&args, &token) {
         Some(i) => i,
         None => return,
     };
 
     // Get info from daemon
-    let info = misc::deamon_req("GET", &host, "status", None).unwrap();
+    let info = misc::deamon_req("GET", &host, "status", Some(json!({ "token": token }))).unwrap();
     let info = StatusInfo::deserialize(info).unwrap();
 
     // Extrapalate from data

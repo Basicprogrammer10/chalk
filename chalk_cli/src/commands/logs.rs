@@ -50,19 +50,28 @@ pub fn run(args: ArgMatches) {
         .unwrap_or(&size().map(|x| x.1 as usize).unwrap_or(20));
     let mut page = *args.get_one::<usize>("start_page").unwrap_or(&0);
 
+    // Get token
+    let token = match misc::get_token(&args) {
+        Some(i) => i,
+        None => {
+            println!("{}", "[-] No token defined!".red());
+            return;
+        }
+    };
+
     // Get host
-    let host = match misc::host_stuff(&args) {
+    let host = match misc::host_stuff(&args, &token) {
         Some(i) => i,
         None => return,
     };
 
     if is_basic {
-        basic(get_lines(&host, page, lines, true, None));
+        basic(get_lines(&host, &token, page, lines, false, None));
         return;
     }
 
     let mut loaded_lines = Vec::new();
-    let info = get_lines(&host, page, lines, false, None);
+    let info = get_lines(&host, &token, page, lines, false, None);
     let mut end = info.end;
     let mut line: usize = 0;
     loaded_lines.extend(info.logs);
@@ -134,7 +143,7 @@ pub fn run(args: ArgMatches) {
 
         if lines + line > (page + 1) * lines && !end {
             page += 1;
-            let info = get_lines(&host, page, lines, false, Some(end_time));
+            let info = get_lines(&host, &token, page, lines, false, Some(end_time));
             end = end || info.end;
             loaded_lines.extend(info.logs);
         }
@@ -144,12 +153,19 @@ pub fn run(args: ArgMatches) {
     disable_raw_mode().unwrap();
 }
 
-fn get_lines(host: &str, page: usize, lines: usize, rev: bool, time: Option<i64>) -> LogsInfo {
+fn get_lines(
+    host: &str,
+    token: &str,
+    page: usize,
+    lines: usize,
+    rev: bool,
+    time: Option<i64>,
+) -> LogsInfo {
     let info = misc::deamon_req(
         "POST",
         host,
         "logs",
-        Some(json!({"page": page, "lines": lines, "end_time": time, "rev": rev})),
+        Some(json!({"page": page, "lines": lines, "end_time": time, "rev": rev, "token": token})),
     )
     .expect("Error getting data");
 
@@ -162,7 +178,7 @@ fn basic(info: LogsInfo) {
         return;
     }
 
-    if info.end {
+    if info.page == 0 {
         println!("{}", "(END)".reversed());
     }
 
@@ -172,7 +188,7 @@ fn basic(info: LogsInfo) {
         println!("{}", i.log_type.colorize(line));
     }
 
-    if info.page == 0 {
+    if info.end {
         println!("{}", "(START)".reversed());
     }
 }

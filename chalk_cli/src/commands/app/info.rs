@@ -41,14 +41,29 @@ pub enum Status {
 
 pub fn run(args: ArgMatches) {
     let name = args.get_one::<String>("app").unwrap();
-    let host = match misc::host_stuff(&args) {
+
+    // Get token
+    let token = match misc::get_token(&args) {
+        Some(i) => i,
+        None => {
+            println!("{}", "[-] No token defined!".red());
+            return;
+        }
+    };
+
+    let host = match misc::host_stuff(&args, &token) {
         Some(i) => i,
         None => return,
     };
 
     let now = Utc::now().timestamp() as u64;
-    let raw = misc::deamon_req("POST", &host, "app/info", Some(json!({ "name": name })))
-        .expect("Error getting data");
+    let raw = misc::deamon_req(
+        "GET",
+        &host,
+        "app/info",
+        Some(json!({ "name": name, "token": token })),
+    )
+    .expect("Error getting data");
     let body = InfoInfo::deserialize(raw).expect("Invalid data fetched");
     let stdout = take_lines(body.output.stdout);
     let stderr = take_lines(body.output.stderr);

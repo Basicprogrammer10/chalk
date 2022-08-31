@@ -87,9 +87,11 @@ dependencies = [
  "clap",
  "colored",
  "crossterm",
+ "directories",
  "serde",
  "serde_derive",
  "serde_json",
+ "toml",
  "ureq",
  "url",
 ]

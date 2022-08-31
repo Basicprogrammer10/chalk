@@ -1,7 +1,10 @@
+use std::fs;
 use std::process;
 
 use clap::ArgMatches;
 use colored::Colorize;
+use directories::ProjectDirs;
+use serde_json::json;
 use serde_json::Value;
 use ureq::Error;
 use url::Url;
@@ -33,6 +36,31 @@ pub fn tc<T, E>(case: bool, value: T, a: impl Fn(T) -> E, b: impl Fn(T) -> E) ->
     }
 
     b(value)
+}
+
+pub fn get_token(token: &ArgMatches) -> Option<String> {
+    let token = token.get_one::<String>("token").cloned();
+
+    if token.is_some() {
+        // Save token?
+        return token;
+    }
+
+    // Try reading cache?
+
+    // Try reading config file
+    let config_file = ProjectDirs::from("com", "connorcode", "chalk")
+        .unwrap()
+        .preference_dir()
+        .join("config.toml");
+    if config_file.exists() {
+        let raw = fs::read_to_string(config_file).unwrap();
+        let toml = toml::from_str::<toml::Value>(&raw).unwrap();
+        return Some(toml.get("token")?.as_str()?.to_owned());
+    }
+
+    // Fail
+    None
 }
 
 pub fn deamon_req(
@@ -81,7 +109,7 @@ pub fn format_elapsed(secs: u64) -> String {
 
 // == HOST STUFF ==
 
-pub fn host_stuff(args: &ArgMatches) -> Option<String> {
+pub fn host_stuff(args: &ArgMatches, token: &str) -> Option<String> {
     // Get host
     let host = match parse_host(
         args.get_one::<String>("host")
@@ -96,7 +124,7 @@ pub fn host_stuff(args: &ArgMatches) -> Option<String> {
     };
 
     // Verify Host
-    if let Err(i) = deamon_req("GET", &host, "ping", None) {
+    if let Err(i) = deamon_req("GET", &host, "ping", Some(json!({ "token": token }))) {
         match i {
             ActionError::Read(e) => println!("{}\n{}", "[-] Error connecting to host".red(), e),
             ActionError::Parse(e) => println!("{}\n{}", "[-] Error reading from host".red(), e),

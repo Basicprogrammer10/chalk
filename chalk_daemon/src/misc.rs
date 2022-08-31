@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::sync::Arc;
 
 use git2::Repository;
@@ -54,27 +55,51 @@ pub enum ValadateType {
 }
 
 impl ValadateType {
+    pub fn token_type(app: Arc<App>, token: String) -> Self {
+        if token == app.config.api.token {
+            return ValadateType::Global;
+        }
+
+        if app
+            .projects
+            .read()
+            .iter()
+            .any(|x| x.config.api_token == token)
+        {
+            return ValadateType::Scoped("".to_owned());
+        }
+
+        ValadateType::Any
+    }
+
     pub fn valadate(&self, app: Arc<App>, token: String) -> bool {
-        let is_global = token == app.config.api.token;
-        match self {
-            ValadateType::Global => is_global,
-            ValadateType::Scoped(project) => {
-                app.projects
-                    .read()
-                    .iter()
-                    .find(|x| &x.name == project)
-                    .map(|x| x.config.api_token.to_owned())
-                    == Some(token)
-            }
-            ValadateType::Any => {
-                is_global
-                    || app
-                        .projects
+        token == app.config.api.token
+            || match self {
+                ValadateType::Global => false,
+                ValadateType::Scoped(project) => {
+                    app.projects
                         .read()
                         .iter()
-                        .any(|x| x.config.api_token == token)
+                        .find(|x| &x.name == project)
+                        .map(|x| x.config.api_token.to_owned())
+                        == Some(token)
+                }
+                ValadateType::Any => app
+                    .projects
+                    .read()
+                    .iter()
+                    .any(|x| x.config.api_token == token),
             }
-        }
+    }
+}
+
+impl Display for ValadateType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            ValadateType::Any => "any",
+            ValadateType::Global => "global",
+            ValadateType::Scoped(_) => "scoped",
+        })
     }
 }
 
