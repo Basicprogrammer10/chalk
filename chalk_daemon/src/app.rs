@@ -1,9 +1,10 @@
 use std::fmt::{self, Display, Formatter};
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
 use std::process;
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
-use chrono::Utc;
+use chrono::{Local, TimeZone, Utc};
 use colored::Colorize;
 use directories::ProjectDirs;
 use parking_lot::RwLock;
@@ -12,12 +13,18 @@ use crate::config::Config;
 use crate::Project;
 
 pub struct App {
+    // == App ==
     pub app_dir: ProjectDirs,
     pub config: Config,
     pub uptime: i64,
 
-    pub projects: RwLock<Vec<Project>>,
+    // == Logs ==
     pub logs: RwLock<Vec<Log>>,
+    pub last_log_save: AtomicU64,
+    pub log_save_index: AtomicUsize,
+
+    // == Projects ==
+    pub projects: RwLock<Vec<Project>>,
     pub last_exit_try: AtomicU64,
 }
 
@@ -57,8 +64,11 @@ impl App {
             config,
             uptime: Utc::now().timestamp(),
 
-            projects: RwLock::new(Vec::new()),
             logs: RwLock::new(Vec::new()),
+            last_log_save: AtomicU64::new(0),
+            log_save_index: AtomicUsize::new(0),
+
+            projects: RwLock::new(Vec::new()),
             last_exit_try: AtomicU64::new(0),
         }
     }
@@ -78,6 +88,44 @@ impl App {
 
         println!("{}", text.as_ref());
     }
+
+    pub fn log_tick(&self, force: bool) {
+        let last_save_index = self.log_save_index.load(Ordering::Relaxed);
+        let logs = self.logs.read();
+
+        // Try save every minute
+        if (self.last_log_save.load(Ordering::Relaxed) < 60 && !force)
+            || last_save_index >= logs.len()
+        {
+            return;
+        }
+
+        println!("SAVEING LOGS");
+
+        let log_folder = self.app_dir.preference_dir().join("logs");
+        if !log_folder.exists() {
+            fs::create_dir_all(&log_folder).unwrap();
+        }
+
+        let log_file = log_folder.join(Utc::now().format("%Y-%m-%d.log").to_string());
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(log_file)
+            .unwrap();
+
+        let mut to_save = logs
+            .iter()
+            .skip(last_save_index as usize)
+            .map(|x| x.to_string())
+            .collect::<Vec<_>>();
+        to_save.push("".to_owned());
+        file.write_all(to_save.join("\n").as_bytes()).unwrap();
+
+        self.log_save_index.store(logs.len(), Ordering::Relaxed);
+        self.last_log_save
+            .store(Utc::now().timestamp() as u64, Ordering::Relaxed);
+    }
 }
 
 impl Display for LogType {
@@ -86,5 +134,16 @@ impl Display for LogType {
             LogType::Error => "error",
             LogType::Info => "info",
         })
+    }
+}
+
+impl Display for Log {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!(
+            "[{}] [{}] {}",
+            Local.timestamp(self.time, 0).format("%H:%M:%S"),
+            self.log_type,
+            self.data
+        ))
     }
 }

@@ -188,6 +188,15 @@ impl Project {
         }
     }
 
+    pub fn any_running(app: Arc<App>) -> bool {
+        app.projects
+            .read()
+            .iter()
+            .filter(|x| *x.status.read() == ProjectStatus::Running)
+            .count()
+            == 0
+    }
+
     pub fn load_project(path: PathBuf, app: Arc<App>) -> Option<Project> {
         app.log(
             LogType::Info,

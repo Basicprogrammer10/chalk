@@ -9,7 +9,7 @@ mod misc;
 mod project;
 use app::{App, LogType};
 use misc::Timer;
-use project::{Project, ProjectStatus};
+use project::Project;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -31,7 +31,7 @@ fn main() {
     // Start API
     api::start(app.clone());
 
-    // Start an loop to poll tasks
+    // Start an loop to poll tasks and manage logs
     Timer::new(app.config.task_poll).start(|| {
         app.projects
             .read()
@@ -39,19 +39,9 @@ fn main() {
             .filter(|x| x.status.read().is_running())
             .for_each(Project::poll);
 
-        // TODO: Cleanup
-        if app.last_exit_try.load(Ordering::Relaxed) == 0 {
-            return;
-        }
-
-        if app
-            .projects
-            .read()
-            .iter()
-            .filter(|x| *x.status.read() == ProjectStatus::Running)
-            .count()
-            == 0
-        {
+        app.log_tick(false);
+        if app.last_exit_try.load(Ordering::Relaxed) != 0 && Project::any_running(app.clone()) {
+            app.log_tick(true);
             process::exit(0);
         }
     });
