@@ -8,7 +8,7 @@ use serde_json::json;
 
 use crate::{
     commands::status,
-    misc::{self, t, tc},
+    misc::{self, tc},
 };
 
 #[derive(Deserialize)]
@@ -124,22 +124,19 @@ impl Status {
 
 impl Display for Status {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(
-            &match self {
-                Self::Running => "Running".to_owned().green(),
-                Self::Stoped => "Stoped".to_owned().yellow(),
-                Self::Crashed(ok, status) => format!(
-                    "Crashed{}",
-                    tc(
-                        status.is_some(),
-                        (),
-                        |_| format!(" ({})", status.unwrap()),
-                        |_| "".to_owned()
-                    )
+        f.write_str(&match self {
+            Self::Running => "Running".to_owned().green(),
+            Self::Stoped => "Stoped".to_owned().yellow(),
+            Self::Crashed(_, status) => format!(
+                "Crashed{}",
+                tc(
+                    status.is_some(),
+                    (),
+                    |_| format!(" ({})", status.unwrap()),
+                    |_| "".to_owned()
                 )
-                .red(),
-            }
-            .to_string(),
-        )
+            )
+            .red(),
+        })
     }
 }

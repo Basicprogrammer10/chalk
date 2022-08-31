@@ -1,6 +1,4 @@
-use std::str::FromStr;
-
-use clap::{value_parser, Arg, ArgMatches, Command};
+use clap::{value_parser, Arg, Command};
 
 use crate::{commands::Commands, VERSION};
 

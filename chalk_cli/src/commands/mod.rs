@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use clap::ArgMatches;
 
 mod app;

@@ -50,7 +50,7 @@ where
     };
     let req = match req {
         Ok(res) => res,
-        Err(Error::Status(code, res)) => res,
+        Err(Error::Status(_, res)) => res,
         Err(e) => return Err(ActionError::Connect(Box::new(e))),
     };
     let data = req.into_string()?;
