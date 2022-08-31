@@ -39,17 +39,8 @@ pub enum ProjectState {
 }
 
 pub fn run(args: ArgMatches) {
-    // Get token
-    let token = match misc::get_token(&args) {
-        Some(i) => i,
-        None => {
-            println!("{}", "[-] No token defined!".red());
-            return;
-        }
-    };
-
     // Get host
-    let host = match misc::host_stuff(&args, &token) {
+    let (host, token) = match misc::host_stuff(&args) {
         Some(i) => i,
         None => return,
     };

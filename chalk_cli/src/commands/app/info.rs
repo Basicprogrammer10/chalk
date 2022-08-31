@@ -42,16 +42,8 @@ pub enum Status {
 pub fn run(args: ArgMatches) {
     let name = args.get_one::<String>("app").unwrap();
 
-    // Get token
-    let token = match misc::get_token(&args) {
-        Some(i) => i,
-        None => {
-            println!("{}", "[-] No token defined!".red());
-            return;
-        }
-    };
-
-    let host = match misc::host_stuff(&args, &token) {
+    // Get host
+    let (host, token) = match misc::host_stuff(&args) {
         Some(i) => i,
         None => return,
     };

@@ -50,17 +50,8 @@ pub fn run(args: ArgMatches) {
         .unwrap_or(&size().map(|x| x.1 as usize).unwrap_or(20));
     let mut page = *args.get_one::<usize>("start_page").unwrap_or(&0);
 
-    // Get token
-    let token = match misc::get_token(&args) {
-        Some(i) => i,
-        None => {
-            println!("{}", "[-] No token defined!".red());
-            return;
-        }
-    };
-
     // Get host
-    let host = match misc::host_stuff(&args, &token) {
+    let (host, token) = match misc::host_stuff(&args) {
         Some(i) => i,
         None => return,
     };
@@ -134,7 +125,7 @@ pub fn run(args: ArgMatches) {
                     _ => {}
                 }
 
-                line = line.min(loaded_lines.len() - height + 2);
+                line = line.min(loaded_lines.len().saturating_sub(height + 2));
                 if line != old_line {
                     break;
                 }
