@@ -1,15 +1,13 @@
 use std::fmt::Display;
 
+use chrono::Utc;
 use clap::ArgMatches;
 use colored::Colorize;
 use serde::Deserialize;
 use serde_derive::Deserialize;
 use serde_json::json;
 
-use crate::{
-    commands::status,
-    misc::{self, tc},
-};
+use crate::misc::{self, tc};
 
 #[derive(Deserialize)]
 struct InfoInfo {
@@ -21,8 +19,10 @@ struct InfoInfo {
 
 #[derive(Deserialize)]
 struct Info {
+    pid: usize,
     memory: u32,
     threads: u32,
+    uptime: u64,
 }
 
 #[derive(Deserialize)]
@@ -46,6 +46,7 @@ pub fn run(args: ArgMatches) {
         None => return,
     };
 
+    let now = Utc::now().timestamp() as u64;
     let raw = misc::deamon_req("POST", &host, "app/info", Some(json!({ "name": name })))
         .expect("Error getting data");
     let body = InfoInfo::deserialize(raw).expect("Invalid data fetched");
@@ -76,22 +77,26 @@ pub fn run(args: ArgMatches) {
         body.name.magenta().bold()
     );
     println!("  {} {}", "Status:".blue(), body.status);
-    println!("  {} {}", "Uptime:".blue(), misc::format_elapsed(0));
-    println!("     {} {}", "Pid:".blue(), "69");
+    if body.info.uptime != 0 {
+        println!(
+            "  {} {}",
+            "Uptime:".blue(),
+            misc::format_elapsed(now.saturating_sub(body.info.uptime))
+        );
+    }
+    println!("     {} {}", "Pid:".blue(), body.info.pid);
     println!(" {} {}", "Threads:".blue(), body.info.threads);
     println!("  {} {}", "Memory:".blue(), body.info.memory);
 
-    println!("\n{}", "== STDOUT ==".bold());
     println!(
-        "{}{}",
-        tc(stdout.0, (), |_| "(START)\n".reversed(), |_| "".white()),
+        "\n{}\n{}",
+        tc(stdout.0, "== STDOUT ==".bold(), |x| x.reversed(), |x| x),
         stdout.1
     );
 
-    println!("\n{}", "== STDERR ==".bold());
     println!(
-        "{}{}",
-        tc(stderr.0, (), |_| "(START)\n".reversed(), |_| "".white()),
+        "\n{}\n{}",
+        tc(stderr.0, "== STDERR ==".bold(), |x| x.reversed(), |x| x),
         stderr.1
     );
 }

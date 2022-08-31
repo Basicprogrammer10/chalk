@@ -51,6 +51,7 @@ fn get_info(app: &Project) -> Option<Value> {
     let stats = procinfo::pid::stat(pid).ok()?;
 
     Some(json!({
+        "pid": pid,
         "memory": mem_info.size,
         "threads": stats.num_threads,
         "uptime": app.process.uptime.load(Ordering::Relaxed)
