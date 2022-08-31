@@ -1,2 +1,5 @@
 [workspace]
-members = ["chalk_daemon", "chalk_cli"]
+members = [
+  "chalk_daemon",
+  "chalk_cli",
+]

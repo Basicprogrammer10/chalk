@@ -4,6 +4,7 @@ use std::process;
 use clap::ArgMatches;
 use colored::Colorize;
 use directories::ProjectDirs;
+use lazy_static::lazy_static;
 use serde_json::{json, Value};
 use ureq::Error;
 use url::Url;
@@ -18,6 +19,10 @@ const TIME_UNITS: &[(&str, u16)] = &[
     ("month", 12),
     ("year", 0),
 ];
+
+lazy_static! {
+    static ref CONFIG_DIR: ProjectDirs = ProjectDirs::from("com", "connorcode", "chalk").unwrap();
+}
 
 // == MISC ==
 
@@ -35,35 +40,6 @@ pub fn tc<T, E>(case: bool, value: T, a: impl Fn(T) -> E, b: impl Fn(T) -> E) ->
     }
 
     b(value)
-}
-
-pub fn get_token(token: &ArgMatches, raw_host: String) -> Option<(String, bool)> {
-    let config_dir = ProjectDirs::from("com", "connorcode", "chalk").unwrap();
-    let token_storage_path = config_dir.data_dir().join("tokens.json");
-    let token = token.get_one::<String>("token").cloned();
-
-    if let Some(i) = token {
-        return Some((i, true));
-    }
-
-    // Try reading cache?
-    if let Ok(i) = fs::read_to_string(&token_storage_path) {
-        let token_storage = serde_json::from_str::<Vec<[String; 2]>>(&i).unwrap();
-        if let Some(i) = token_storage.iter().find(|x| x[0] == raw_host) {
-            return Some((i[1].clone(), false));
-        }
-    }
-
-    // Try reading config file
-    let daemon_config = config_dir.preference_dir().join("config.toml");
-    if daemon_config.exists() {
-        let raw = fs::read_to_string(daemon_config).unwrap();
-        let toml = toml::from_str::<toml::Value>(&raw).unwrap();
-        return Some((toml.get("token")?.as_str()?.to_owned(), false));
-    }
-
-    // Fail
-    None
 }
 
 pub fn deamon_req(
@@ -166,9 +142,36 @@ pub fn parse_host(inp: &str) -> Result<String, url::ParseError> {
     ))
 }
 
+fn get_token(token: &ArgMatches, raw_host: String) -> Option<(String, bool)> {
+    let token_storage_path = CONFIG_DIR.data_dir().join("tokens.json");
+    let token = token.get_one::<String>("token").cloned();
+
+    if let Some(i) = token {
+        return Some((i, true));
+    }
+
+    // Try reading cache?
+    if let Ok(i) = fs::read_to_string(&token_storage_path) {
+        let token_storage = serde_json::from_str::<Vec<[String; 2]>>(&i).unwrap();
+        if let Some(i) = token_storage.iter().find(|x| x[0] == raw_host) {
+            return Some((i[1].clone(), false));
+        }
+    }
+
+    // Try reading config file
+    let daemon_config = CONFIG_DIR.preference_dir().join("config.toml");
+    if daemon_config.exists() {
+        let raw = fs::read_to_string(daemon_config).unwrap();
+        let toml = toml::from_str::<toml::Value>(&raw).unwrap();
+        return Some((toml.get("token")?.as_str()?.to_owned(), false));
+    }
+
+    // Fail
+    None
+}
+
 fn save_token(host: &str, token: &str) {
-    let config_dir = ProjectDirs::from("com", "connorcode", "chalk").unwrap();
-    let token_storage_path = config_dir.data_dir().join("tokens.json");
+    let token_storage_path = CONFIG_DIR.data_dir().join("tokens.json");
 
     // If cache dosent exist make a new one
     if !token_storage_path.exists() {

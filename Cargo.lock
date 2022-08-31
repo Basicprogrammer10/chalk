@@ -88,6 +88,7 @@ dependencies = [
  "colored",
  "crossterm",
  "directories",
+ "lazy_static",
  "serde",
  "serde_derive",
  "serde_json",
