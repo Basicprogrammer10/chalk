@@ -1,6 +1,9 @@
+use std::process;
+
 use clap::ArgMatches;
 use colored::Colorize;
 use serde_json::Value;
+use ureq::Error;
 use url::Url;
 
 use crate::error::ActionError;
@@ -47,14 +50,15 @@ where
     };
     let req = match req {
         Ok(res) => res,
-        Err(Error::Status(code, response)) => res,
+        Err(Error::Status(code, res)) => res,
         Err(e) => return Err(ActionError::Connect(Box::new(e))),
     };
     let data = req.into_string()?;
     let json = serde_json::from_str::<Value>(&data)?;
 
     if let Some(i) = json.get("error") {
-        println!("{}", format!("[-] {}", i).red());
+        println!("{}", format!("[-] {}", i.as_str().unwrap()).red());
+        process::exit(-1);
     }
 
     Ok(json)
@@ -66,7 +70,7 @@ pub fn format_elapsed(secs: u64) -> String {
     for i in TIME_UNITS {
         if i.1 == 0 || secs < i.1 as f64 {
             secs = secs.round();
-            return format!("{} {}{}", secs, i.0, if secs > 1.0 { "s" } else { "" });
+            return format!("{} {}{}", secs, i.0, if secs != 1. { "" } else { "s" });
         }
 
         secs /= i.1 as f64;
