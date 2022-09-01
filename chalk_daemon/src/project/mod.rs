@@ -79,7 +79,7 @@ pub struct Process {
 pub enum ProjectStatus {
     Running,
     Stoped,
-    Crashed(bool, Option<i32>),
+    Crashed(Option<i32>),
 }
 
 impl Project {
@@ -95,7 +95,7 @@ impl Project {
     }
 
     pub fn start(&self) {
-        let binary_path = self.project_path.join(&self.config.run.run_command);
+        let binary_path = self.project_path.join(&self.config.run.command);
 
         if *self.status.read() == ProjectStatus::Running {
             self.app.log(
@@ -113,15 +113,27 @@ impl Project {
 
         self.app
             .log(LogType::Info, format!("Starting `{}`", self.name));
-        let mut child = process::Command::new(binary_path)
-            .current_dir(self.project_path.join("repo"))
+        let mut child = match process::Command::new(binary_path)
+            .current_dir(self.project_path.join(&self.config.run.path))
             .args(&self.config.run.arguments)
             .envs(&self.config.run.enviroment_vars)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .unwrap();
+        {
+            Ok(i) => i,
+            Err(e) => {
+                self.app.log(
+                    LogType::Error,
+                    format!(
+                        "Error starting `{}`'s executable `{}`: {}",
+                        self.name, self.config.run.command, e
+                    ),
+                );
+                return;
+            }
+        };
 
         *self.process.stdout_reader.lock() =
             Some(NonBlockingReader::from_fd(child.stdout.take().unwrap()).unwrap());
@@ -184,7 +196,7 @@ impl Project {
                 return;
             }
 
-            *self.status.write() = ProjectStatus::Crashed(i.success(), i.code())
+            *self.status.write() = ProjectStatus::Crashed(i.code())
         }
     }
 

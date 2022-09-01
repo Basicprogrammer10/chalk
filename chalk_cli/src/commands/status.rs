@@ -35,7 +35,7 @@ struct Project {
 pub enum ProjectState {
     Running,
     Stoped,
-    Crashed(bool, Option<i32>),
+    Crashed(Option<i32>),
 }
 
 pub fn run(args: ArgMatches) {
@@ -118,7 +118,7 @@ impl ProjectState {
         match self {
             ProjectState::Running => 0,
             ProjectState::Stoped => 1,
-            ProjectState::Crashed(_, _) => 2,
+            ProjectState::Crashed(_) => 2,
         }
     }
 
@@ -126,7 +126,7 @@ impl ProjectState {
         match self {
             Self::Running => inp.green(),
             Self::Stoped => inp.yellow(),
-            Self::Crashed(_, _) => inp.red(),
+            Self::Crashed(_) => inp.red(),
         }
         .to_string()
     }
@@ -145,7 +145,7 @@ impl SystemStatus {
 
 impl From<&StatusInfo> for SystemStatus {
     fn from(from: &StatusInfo) -> Self {
-        match app_count(&from.apps, ProjectState::Crashed(false, None)) {
+        match app_count(&from.apps, ProjectState::Crashed(None)) {
             0 => Self::Good,
             1 => Self::Degraded,
             _ => Self::Yikes,

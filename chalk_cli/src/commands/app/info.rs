@@ -13,7 +13,7 @@ use crate::misc::{self, tc};
 struct InfoInfo {
     name: String,
     status: Status,
-    info: Info,
+    info: Option<Info>,
     output: Output,
 }
 
@@ -36,7 +36,7 @@ struct Output {
 pub enum Status {
     Running,
     Stoped,
-    Crashed(bool, Option<i32>),
+    Crashed(Option<i32>),
 }
 
 pub fn run(args: ArgMatches) {
@@ -84,16 +84,18 @@ pub fn run(args: ArgMatches) {
         body.name.magenta().bold()
     );
     println!("  {} {}", "Status:".blue(), body.status);
-    if body.info.uptime != 0 {
-        println!(
-            "  {} {}",
-            "Uptime:".blue(),
-            misc::format_elapsed(now.saturating_sub(body.info.uptime))
-        );
+    if let Some(i) = body.info {
+        if i.uptime != 0 {
+            println!(
+                "  {} {}",
+                "Uptime:".blue(),
+                misc::format_elapsed(now.saturating_sub(i.uptime))
+            );
+        }
+        println!("     {} {}", "Pid:".blue(), i.pid);
+        println!(" {} {}", "Threads:".blue(), i.threads);
+        println!("  {} {}", "Memory:".blue(), i.memory);
     }
-    println!("     {} {}", "Pid:".blue(), body.info.pid);
-    println!(" {} {}", "Threads:".blue(), body.info.threads);
-    println!("  {} {}", "Memory:".blue(), body.info.memory);
 
     println!(
         "\n{}\n{}",
@@ -128,7 +130,7 @@ impl Status {
         match self {
             Self::Running => "●".green(),
             Self::Stoped => "●".yellow(),
-            Self::Crashed(_, _) => "●".red(),
+            Self::Crashed(_) => "●".red(),
         }
         .to_string()
     }
@@ -139,7 +141,7 @@ impl Display for Status {
         f.write_str(&match self {
             Self::Running => "Running".to_owned().green(),
             Self::Stoped => "Stoped".to_owned().yellow(),
-            Self::Crashed(_, status) => format!(
+            Self::Crashed(status) => format!(
                 "Crashed{}",
                 tc(
                     status.is_some(),

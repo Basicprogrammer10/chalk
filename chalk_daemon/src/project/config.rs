@@ -13,7 +13,8 @@ pub struct ProjectConfig {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ProjectRunConfig {
-    pub run_command: String,
+    pub path: String,
+    pub command: String,
     pub arguments: Vec<String>,
     pub enviroment_vars: HashMap<String, String>,
 }

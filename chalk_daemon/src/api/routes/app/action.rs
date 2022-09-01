@@ -9,6 +9,7 @@ use git2::{
     build::{CheckoutBuilder, RepoBuilder},
     Repository,
 };
+use git2::{Cred, FetchOptions, RemoteCallbacks};
 use nix::sys::signal::Signal;
 use serde_derive::Deserialize;
 use serde_json::json;
@@ -87,7 +88,6 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
                     return misc::error_res("App is still running");
                 }
 
-                // TODO: username - token
                 if let Some(i) = &project.config.git.repo {
                     let branch = body.branch.expect("No Branch defined");
                     let repo_path = project.project_path.join("repo");
@@ -100,6 +100,7 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
                     if !repo_path.exists() {
                         let mut repo = RepoBuilder::new();
                         repo.with_checkout(checkout_bld);
+                        repo.fetch_options(git_auth_callback(project));
                         repo.clone(i, &repo_path).expect("Error cloneing repo");
                     }
 
@@ -108,9 +109,9 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
                         .find_remote(body.remote.as_deref().unwrap_or("origin"))
                         .expect("Remote not found");
 
-                    let mut fo = git2::FetchOptions::new();
-                    fo.download_tags(git2::AutotagOption::All);
-                    remote.fetch(&[&branch], Some(&mut fo), None).unwrap();
+                    remote
+                        .fetch(&[&branch], Some(&mut git_auth_callback(project)), None)
+                        .unwrap();
                     let fetch_head = match body.checkout {
                         Some(i) => repo
                             .resolve_reference_from_short_name(&i)
@@ -153,4 +154,29 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
             .text(json!({"status": "ok"}))
             .content(Content::JSON)
     });
+}
+
+fn git_auth_callback(project: &Project) -> FetchOptions {
+    let mut callbacks = RemoteCallbacks::new();
+    callbacks.credentials(|_url, _username_from_url, _allowed_types| {
+        Cred::userpass_plaintext(
+            project
+                .config
+                .git
+                .username
+                .as_ref()
+                .expect("No project git username defined"),
+            project
+                .config
+                .git
+                .token
+                .as_ref()
+                .expect("No project git token defined"),
+        )
+    });
+
+    let mut fo = FetchOptions::new();
+    fo.remote_callbacks(callbacks);
+    fo.download_tags(git2::AutotagOption::All);
+    fo
 }
