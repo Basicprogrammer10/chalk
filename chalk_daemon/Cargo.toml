@@ -1,15 +1,15 @@
 [package]
-name = "chalk_daemon"
 authors = ["Connor Slade <connor@connorcode.com>"]
-version = "0.1.0"
 edition = "2021"
+name = "chalk_daemon"
+version = "0.1.0"
 
 [dependencies]
 afire = "1.2.0"
 base64 = "0.13.0"
 chrono = "0.4.22"
 colored = "2.0.0"
-ctrlc = { version = "3.2.3", features = ["termination"] }
+ctrlc = {version = "3.2.3", features = ["termination"]}
 directories = "4.0.1"
 flate2 = "1.0.24"
 git2 = "0.15.0"

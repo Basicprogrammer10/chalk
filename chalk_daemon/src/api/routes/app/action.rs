@@ -1,5 +1,6 @@
 use std::fs;
 use std::io::{Cursor, Read};
+use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -9,7 +10,7 @@ use git2::{
     build::{CheckoutBuilder, RepoBuilder},
     Repository,
 };
-use git2::{Cred, FetchOptions, RemoteCallbacks};
+use git2::{Cred, CredentialType, FetchOptions, RemoteCallbacks};
 use nix::sys::signal::Signal;
 use serde_derive::Deserialize;
 use serde_json::json;
@@ -98,10 +99,11 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
                     }
 
                     if !repo_path.exists() {
-                        let mut repo = RepoBuilder::new();
-                        repo.with_checkout(checkout_bld);
-                        repo.fetch_options(git_auth_callback(project));
-                        repo.clone(i, &repo_path).expect("Error cloneing repo");
+                        RepoBuilder::new()
+                            .with_checkout(checkout_bld)
+                            .fetch_options(git_auth_callback(project))
+                            .clone(i, &repo_path)
+                            .expect("Error cloneing repo");
                     }
 
                     let repo = Repository::open(repo_path).expect("Error opening repo");
@@ -158,21 +160,39 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
 
 fn git_auth_callback(project: &Project) -> FetchOptions {
     let mut callbacks = RemoteCallbacks::new();
-    callbacks.credentials(|_url, _username_from_url, _allowed_types| {
-        Cred::userpass_plaintext(
-            project
-                .config
-                .git
-                .username
-                .as_ref()
-                .expect("No project git username defined"),
-            project
-                .config
-                .git
-                .token
-                .as_ref()
-                .expect("No project git token defined"),
-        )
+    callbacks.credentials(|_url, username_from_url, allowed_types| {
+        let username = project
+            .config
+            .git
+            .username
+            .as_ref()
+            .expect("No project git username defined");
+
+        let token = project.config.git.token.as_ref();
+        let ssh_key = project.config.git.ssh_key_file.as_ref();
+
+        if allowed_types.contains(CredentialType::SSH_MEMORY) {
+            if let Some(i) = ssh_key {
+                return Cred::ssh_key(
+                    username_from_url.unwrap_or(username),
+                    None,
+                    Path::new(i),
+                    None,
+                );
+            }
+
+            panic!("Tried to use ssh auth, no private key defined");
+        }
+
+        if allowed_types.contains(CredentialType::USER_PASS_PLAINTEXT) {
+            if let Some(i) = token {
+                return Cred::userpass_plaintext(username_from_url.unwrap_or(username), i);
+            }
+
+            panic!("Tried to use token auth, no token defined");
+        }
+
+        panic!("No valid git auth found")
     });
 
     let mut fo = FetchOptions::new();

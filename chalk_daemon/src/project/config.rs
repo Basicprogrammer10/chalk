@@ -24,4 +24,5 @@ pub struct ProjectGitConfig {
     pub repo: Option<String>,
     pub username: Option<String>,
     pub token: Option<String>,
+    pub ssh_key_file: Option<String>,
 }
