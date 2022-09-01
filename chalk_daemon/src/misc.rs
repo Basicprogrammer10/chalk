@@ -1,14 +1,13 @@
 use std::fmt::Display;
 use std::sync::Arc;
-
-use git2::Repository;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use afire::{Content, Response};
+use afire::{internal::common::remove_address_port, Content, Request, Response};
+use git2::Repository;
 use serde_json::json;
 
-use crate::app::App;
+use crate::app::{App, LogType};
 
 // == Timer ==
 
@@ -104,6 +103,30 @@ impl Display for ValadateType {
 }
 
 // == Misc Functions ==
+
+pub fn get_ip(req: &Request) -> String {
+    let mut ip = remove_address_port(&req.address);
+    if ip == "127.0.0.1" {
+        if let Some(i) = req.headers.iter().find(|x| x.name == "X-Forwarded-For") {
+            ip = i.value.to_owned();
+        }
+    }
+
+    ip
+}
+
+pub fn token_error(app: Arc<App>, req: Request, token: String) -> Response {
+    app.log(
+        LogType::Info,
+        format!(
+            "[WEB] [{}] Tried Invalid token `{}` on `{}`",
+            get_ip(&req),
+            token,
+            req.path
+        ),
+    );
+    error_res("Invalid Token")
+}
 
 pub fn error_res<T: AsRef<str>>(err: T) -> Response {
     Response::new()

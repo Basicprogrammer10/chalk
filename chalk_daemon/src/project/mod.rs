@@ -192,11 +192,21 @@ impl Project {
             self.process.uptime.store(0, Ordering::Relaxed);
 
             if i.success() {
-                *self.status.write() = ProjectStatus::Stoped;
+                if *self.status.read() != ProjectStatus::Stoped {
+                    *self.status.write() = ProjectStatus::Stoped;
+                    self.app
+                        .log(LogType::Info, format!("Project `{}` has stoped", self.name));
+                }
                 return;
             }
 
-            *self.status.write() = ProjectStatus::Crashed(i.code())
+            if !matches!(*self.status.read(), ProjectStatus::Crashed(_)) {
+                *self.status.write() = ProjectStatus::Crashed(i.code());
+                self.app.log(
+                    LogType::Error,
+                    format!("Project `{}` has crashed! ({:?})", self.name, i.code()),
+                );
+            }
         }
     }
 
@@ -213,7 +223,7 @@ impl Project {
         app.log(
             LogType::Info,
             format!(
-                "Loading app `{}`",
+                "Loading app from `{}`",
                 path.file_name().unwrap().to_string_lossy()
             ),
         );
@@ -221,7 +231,7 @@ impl Project {
         // Read config
         let app_config = path.join("config.toml");
         if !app_config.exists() {
-            app.log(LogType::Error, "App config file not found! (config.toml)");
+            app.log(LogType::Error, "^ App config file not found! (config.toml)");
             return None;
         }
         let raw_config = fs::read_to_string(app_config).expect("Error reading config file");
@@ -230,7 +240,7 @@ impl Project {
         let config = match toml::from_str::<ProjectConfig>(&raw_config) {
             Ok(i) => i,
             Err(e) => {
-                app.log(LogType::Error, format!("Invalid app config: {}", e));
+                app.log(LogType::Error, format!("^ Invalid app config: {}", e));
                 return None;
             }
         };

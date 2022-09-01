@@ -18,7 +18,7 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
     server.route(Method::GET, "/ping", move |req| {
         let body = serde_json::from_str::<RequestData>(&req.body_string().unwrap()).unwrap();
         if !ValadateType::Any.valadate(app.clone(), body.token.clone()) {
-            return misc::error_res("Invalid Token");
+            return misc::token_error(app.clone(), req, body.token);
         }
         let token_type = ValadateType::token_type(app.clone(), body.token);
 

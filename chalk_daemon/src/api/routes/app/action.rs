@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::fs;
 use std::io::{Cursor, Read};
 use std::path::Path;
@@ -15,6 +16,7 @@ use nix::sys::signal::Signal;
 use serde_derive::Deserialize;
 use serde_json::json;
 
+use crate::app::LogType;
 use crate::{
     misc::{self, ValadateType},
     project::{Project, ProjectStatus},
@@ -64,6 +66,7 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
             Some(i) => i,
             None => return misc::error_res("Invalid App"),
         };
+        let name = project.name.to_owned();
 
         match body.action {
             ActionType::Stop => {
@@ -146,11 +149,22 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
                 let mut projects = app.projects.write();
                 projects.retain(|x| x.name != body.name);
                 projects.push(
-                    Project::load_project(path, app.clone()).expect("New project is invalid"),
+                    Project::load_project(path, app.clone())
+                        .expect("New project is invalid. Project unloaded."),
                 );
                 drop(projects);
             }
         }
+
+        app.log(
+            LogType::Info,
+            format!(
+                "[WEB] [{}] Triggerd `{}` on `{}`",
+                misc::get_ip(&req),
+                body.action,
+                name
+            ),
+        );
 
         Response::new()
             .text(json!({"status": "ok"}))
@@ -199,4 +213,15 @@ fn git_auth_callback(project: &Project) -> FetchOptions {
     fo.remote_callbacks(callbacks);
     fo.download_tags(git2::AutotagOption::All);
     fo
+}
+
+impl Display for ActionType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Reload => "reload",
+            Self::Start => "start",
+            Self::Stop => "stop",
+            Self::Update => "update",
+        })
+    }
 }
