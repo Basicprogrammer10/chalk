@@ -94,13 +94,12 @@ impl App {
         let logs = self.logs.read();
 
         // Try save every minute
-        if (self.last_log_save.load(Ordering::Relaxed) < 60 && !force)
-            || last_save_index >= logs.len()
+        let now = Utc::now().timestamp() as u64;
+        if now - self.last_log_save.load(Ordering::Relaxed) < 60
+            || logs.len() <= last_save_index && !force
         {
             return;
         }
-
-        println!("SAVEING LOGS");
 
         let log_folder = self.app_dir.preference_dir().join("logs");
         if !log_folder.exists() {
