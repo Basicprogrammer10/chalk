@@ -11,6 +11,7 @@ use url::Url;
 
 use crate::error::ActionError;
 
+const STORAGE_UNITS: &[&str] = &["KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB"];
 const TIME_UNITS: &[(&str, u16)] = &[
     ("second", 60),
     ("minute", 60),
@@ -84,6 +85,23 @@ pub fn format_elapsed(secs: u64) -> String {
     }
 
     format!("{} years", secs.round())
+}
+
+// Kilibytes to hunal readable format
+pub fn format_storage_unit(kb: usize) -> String {
+    let mut kb = kb as f64;
+    let mut unit = 0;
+
+    while kb > 1024. {
+        kb /= 1024.;
+        unit += 1;
+
+        if unit + 1 >= STORAGE_UNITS.len() {
+            break;
+        }
+    }
+
+    format!("{} {}", (kb * 10.).round() / 10., STORAGE_UNITS[unit])
 }
 
 // == HOST STUFF ==

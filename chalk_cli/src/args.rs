@@ -33,6 +33,9 @@ pub fn from_env() -> Commands {
             Command::new("status")
                 .about("Gets general infomation on the daemon")
                 .args(&base),
+            Command::new("system")
+                .about("Gets infomation on the system running the daemon")
+                .args(&base),
             Command::new("logs")
                 .about("Lets you view a daemons logs")
                 .args(&base)

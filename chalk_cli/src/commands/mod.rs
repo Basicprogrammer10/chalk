@@ -3,12 +3,14 @@ use clap::ArgMatches;
 mod app;
 mod logs;
 mod status;
+mod system;
 mod version;
 
 pub fn run(command: Commands) {
     match command.command {
         CommandType::Version => version::run(command.args),
         CommandType::Status => status::run(command.args),
+        CommandType::System => system::run(command.args),
         CommandType::Logs => logs::run(command.args),
         CommandType::AppInfo => app::info::run(command.args),
     }
@@ -23,6 +25,7 @@ pub enum CommandType {
     // == ROOT COMMANDS ==
     Version,
     Status,
+    System,
     Logs,
 
     // == APP COMMANDS ==
@@ -52,6 +55,7 @@ impl Commands {
         let command_type = match sub_cmd.as_str() {
             "version" => CommandType::Version,
             "status" => CommandType::Status,
+            "system" => CommandType::System,
             "logs" => CommandType::Logs,
             _ => unreachable!(),
         };

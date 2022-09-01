@@ -4,7 +4,7 @@ use std::io::Write;
 use std::process;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
-use chrono::{Local, TimeZone, Utc};
+use chrono::{TimeZone, Utc};
 use colored::Colorize;
 use directories::ProjectDirs;
 use parking_lot::RwLock;
@@ -140,7 +140,7 @@ impl Display for Log {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_fmt(format_args!(
             "[{}] [{}] {}",
-            Local.timestamp(self.time, 0).format("%H:%M:%S"),
+            Utc.timestamp(self.time, 0).format("%H:%M:%S"),
             self.log_type,
             self.data
         ))
