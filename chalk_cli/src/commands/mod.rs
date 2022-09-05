@@ -12,7 +12,10 @@ pub fn run(command: Commands) {
         CommandType::Status => status::run(command.args),
         CommandType::System => system::run(command.args),
         CommandType::Logs => logs::run(command.args),
+
         CommandType::AppInfo => app::info::run(command.args),
+        CommandType::AppStart => app::start::run(command.args),
+        CommandType::AppStop => app::stop::run(command.args),
     }
 }
 
@@ -30,9 +33,8 @@ pub enum CommandType {
 
     // == APP COMMANDS ==
     AppInfo,
-    // == COMMAND IDEAS ==
-    // Sysinfo
-    // App
+    AppStart,
+    AppStop,
 }
 
 impl Commands {
@@ -43,6 +45,8 @@ impl Commands {
             let sub_sub = args.1.subcommand().unwrap();
             let command_type = match sub_sub.0.to_ascii_lowercase().as_str() {
                 "info" => CommandType::AppInfo,
+                "start" => CommandType::AppStart,
+                "stop" => CommandType::AppStop,
                 _ => unreachable!(),
             };
 

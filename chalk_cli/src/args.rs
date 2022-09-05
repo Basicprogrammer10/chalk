@@ -61,10 +61,21 @@ pub fn from_env() -> Commands {
             Command::new("app")
                 .about("Commands that interact with a daemons app")
                 .subcommand_required(true)
-                .subcommands([Command::new("info")
-                    .about("Gets info on a app")
-                    .args(&base)
-                    .arg(Arg::new("app").required(true))]),
+                .subcommands([
+                    Command::new("info")
+                        .about("Gets info on a app")
+                        .args(&base)
+                        .arg(Arg::new("app").required(true)),
+                    Command::new("start")
+                        .about("Starts an app")
+                        .args(&base)
+                        .arg(Arg::new("app").required(true)),
+                    Command::new("stop")
+                        .about("Stop an app")
+                        .args(&base)
+                        .arg(Arg::new("app").required(true))
+                        .arg(Arg::new("signal").takes_value(true)),
+                ]),
         ])
         .get_matches();
 
