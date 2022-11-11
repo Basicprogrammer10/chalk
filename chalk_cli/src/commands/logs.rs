@@ -14,7 +14,6 @@ use crossterm::{
     },
 };
 use serde::Deserialize;
-use serde_derive::Deserialize;
 use serde_json::json;
 
 use crate::misc::{self, t};

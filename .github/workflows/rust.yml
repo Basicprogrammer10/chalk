@@ -17,7 +17,6 @@ jobs:
         run: cargo build --bin chalk
 
       - name: Test
-
         run: cargo test  --bin chalk
 
   buildDaemon:
@@ -33,3 +32,21 @@ jobs:
 
       - name: Test
         run: cargo test --bin chalk_daemon
+
+  buildAfireIntegration:
+    name: "Build afire Integration"
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    if: "!contains(github.event.head_commit.message, '[CI_SKIP]')"
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Build
+        run: cargo build -p afire_integration
+
+      - name: Test
+        run: cargo test -p afire_integration

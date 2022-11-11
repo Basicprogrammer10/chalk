@@ -4,7 +4,6 @@ use chrono::Utc;
 use clap::ArgMatches;
 use colored::Colorize;
 use serde::Deserialize;
-use serde_derive::Deserialize;
 use serde_json::json;
 
 use crate::misc::{self, tc};

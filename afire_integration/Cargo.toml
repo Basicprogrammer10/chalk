@@ -1,0 +1,11 @@
+[package]
+name = "afire_integration"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+afire = "1.2.0"
+ahash = "0.8.2"
+serde = { version = "1.0.147", features = ["derive"] }
+serde_derive = "1.0.147"
+serde_json = "1.0.87"
