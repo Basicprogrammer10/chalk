@@ -18,7 +18,7 @@ pub struct RemoteControl {
 }
 
 #[derive(Deserialize)]
-pub struct ControlData {
+struct ControlData {
     verification: String,
     action: String,
     data: String,
@@ -31,7 +31,7 @@ impl RemoteControl {
             method: Method::POST,
             path: "/control".to_owned(),
 
-            enabled: key.is_ok() || true,
+            enabled: key.is_ok(),
             systems: HashMap::new(),
             verification: key.unwrap_or("".to_owned()),
         }
@@ -46,6 +46,32 @@ impl RemoteControl {
         systems.insert(name.to_owned(), Box::new(exe));
 
         Self { systems, ..self }
+    }
+
+    pub fn method(self, method: Method) -> Self {
+        Self { method, ..self }
+    }
+
+    pub fn path<T: AsRef<str>>(self, path: T) -> Self {
+        Self {
+            path: path.as_ref().to_owned(),
+            ..self
+        }
+    }
+
+    /// For Debug Only
+    pub fn enabled(self, enabled: bool) -> Self {
+        println!("[-] Debug only option `enabled` was changed on RemoteControl");
+        Self { enabled, ..self }
+    }
+
+    /// For Debug Only
+    pub fn verification(self, verification: String) -> Self {
+        println!("[-] Debug only option `verification` was changed on RemoteControl");
+        Self {
+            verification,
+            ..self
+        }
     }
 
     pub fn attach<App>(self, server: &mut Server<App>)
