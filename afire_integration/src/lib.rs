@@ -1,27 +1,28 @@
 use std::env;
 
-use afire::{Method, Response, Server};
+use afire::{Method, Request, Response, Server};
 use ahash::{HashMap, HashMapExt};
 use serde::Deserialize;
-
-type Executer = Box<dyn Fn(String) -> String + Send + Sync>;
 
 pub struct RemoteControl {
     // == Route Config ==
     method: Method,
     path: String,
 
+    // == Systems ==
+    systems: HashMap<String, Box<dyn Fn(String) -> String + Send + Sync>>,
+    any: Vec<Box<dyn Fn(&Request, ControlData) + Send + Sync>>,
+
     // == Other ==
     enabled: bool,
-    systems: HashMap<String, Executer>,
     verification: String,
 }
 
-#[derive(Deserialize)]
-struct ControlData {
-    verification: String,
-    action: String,
-    data: String,
+#[derive(Clone, Deserialize)]
+pub struct ControlData {
+    pub verification: String,
+    pub action: String,
+    pub data: String,
 }
 
 impl RemoteControl {
@@ -31,8 +32,10 @@ impl RemoteControl {
             method: Method::POST,
             path: "/control".to_owned(),
 
-            enabled: key.is_ok(),
             systems: HashMap::new(),
+            any: Vec::new(),
+
+            enabled: key.is_ok(),
             verification: key.unwrap_or("".to_owned()),
         }
     }
@@ -46,6 +49,13 @@ impl RemoteControl {
         systems.insert(name.to_owned(), Box::new(exe));
 
         Self { systems, ..self }
+    }
+
+    /// (Request, ControlData)
+    pub fn any(self, exe: impl Fn(&Request, ControlData) + Send + Sync + 'static) -> Self {
+        let mut any = self.any;
+        any.push(Box::new(exe));
+        Self { any, ..self }
     }
 
     pub fn method(self, method: Method) -> Self {
@@ -99,7 +109,8 @@ impl RemoteControl {
                 None => return err("Action not found"),
             };
 
-            let out = executer(data.data);
+            self.any.iter().for_each(|x| x(&req, data.clone()));
+            let out = executer(data.data.clone());
             Response::new().text(out)
         });
     }
