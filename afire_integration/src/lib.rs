@@ -1,8 +1,11 @@
-use std::env;
+use std::{env, fmt::Display};
 
 use afire::{Method, Request, Response, Server};
 use ahash::{HashMap, HashMapExt};
-use serde::Deserialize;
+use serde_json::Value;
+
+type System = Box<dyn Fn(&Value) -> Value + Send + Sync>;
+type Any = Box<dyn Fn(&Request, &Value) + Send + Sync>;
 
 pub struct RemoteControl {
     // == Route Config ==
@@ -10,19 +13,12 @@ pub struct RemoteControl {
     path: String,
 
     // == Systems ==
-    systems: HashMap<String, Box<dyn Fn(String) -> String + Send + Sync>>,
-    any: Vec<Box<dyn Fn(&Request, ControlData) + Send + Sync>>,
+    systems: HashMap<String, System>,
+    any: Vec<Any>,
 
     // == Other ==
     enabled: bool,
     verification: String,
-}
-
-#[derive(Clone, Deserialize)]
-pub struct ControlData {
-    pub verification: String,
-    pub action: String,
-    pub data: String,
 }
 
 impl RemoteControl {
@@ -36,15 +32,11 @@ impl RemoteControl {
             any: Vec::new(),
 
             enabled: key.is_ok(),
-            verification: key.unwrap_or("".to_owned()),
+            verification: key.unwrap_or_else(|_| "".to_owned()),
         }
     }
 
-    pub fn system(
-        self,
-        name: &str,
-        exe: impl Fn(String) -> String + Send + Sync + 'static,
-    ) -> Self {
+    pub fn system(self, name: &str, exe: impl Fn(&Value) -> Value + Send + Sync + 'static) -> Self {
         let mut systems = self.systems;
         systems.insert(name.to_owned(), Box::new(exe));
 
@@ -52,7 +44,7 @@ impl RemoteControl {
     }
 
     /// (Request, ControlData)
-    pub fn any(self, exe: impl Fn(&Request, ControlData) + Send + Sync + 'static) -> Self {
+    pub fn any(self, exe: impl Fn(&Request, &Value) + Send + Sync + 'static) -> Self {
         let mut any = self.any;
         any.push(Box::new(exe));
         Self { any, ..self }
@@ -89,33 +81,47 @@ impl RemoteControl {
         App: 'static + Send + Sync,
     {
         if !self.enabled {
-            println!("[-] Chalk key not found. Disableing remote control.");
+            println!("[-] Chalk key not found. Disabling remote control.");
             return;
         }
 
         server.route(self.method, self.path, move |req| {
-            let data =
-                match serde_json::from_str::<ControlData>(&String::from_utf8_lossy(&req.body)) {
-                    Ok(i) => i,
-                    Err(_) => return err("Invalid Payload"),
-                };
+            let data = match serde_json::from_str::<Value>(&String::from_utf8_lossy(&req.body)) {
+                Ok(i) => i,
+                Err(e) => return err(format!("Invalid JSON: {}", e)),
+            };
 
-            if data.verification != self.verification {
+            let verification = match data.get("verification").and_then(|i| i.as_str()) {
+                Some(i) => i,
+                None => return err("Missing Verification Token"),
+            };
+            if verification != self.verification {
                 return err("Invalid Verification Token");
             }
 
-            let executer = match self.systems.get(&data.action) {
+            let action = match data.get("action").and_then(|i| i.as_str()) {
+                Some(i) => i,
+                None => return err("Missing Action"),
+            };
+            let executer = match self.systems.get(action) {
                 Some(i) => i,
                 None => return err("Action not found"),
             };
 
-            self.any.iter().for_each(|x| x(&req, data.clone()));
-            let out = executer(data.data.clone());
+            let data = data.get("data").unwrap_or(&Value::Null);
+            self.any.iter().for_each(|x| x(req, data));
+            let out = executer(data);
             Response::new().text(out)
         });
     }
 }
 
-fn err(error: &str) -> Response {
+fn err(error: impl Display) -> Response {
     Response::new().status(400).text(error)
+}
+
+impl Default for RemoteControl {
+    fn default() -> Self {
+        Self::new()
+    }
 }
