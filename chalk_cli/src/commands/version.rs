@@ -5,7 +5,7 @@ use crate::{GITHUB, VERSION};
 
 pub fn run(args: ArgMatches) {
     if args.contains_id("basic") {
-        println!("chalk_cli version {}", VERSION);
+        println!("chalk_cli version {VERSION}");
         return;
     }
 
@@ -13,7 +13,7 @@ pub fn run(args: ArgMatches) {
     println!(
         "{} {}\n",
         "🖍️  chalk_cli".magenta().bold(),
-        format!("v{}", VERSION).blue().bold()
+        format!("v{VERSION}").blue().bold()
     );
 
     // Git info (commit, branch, dirty)

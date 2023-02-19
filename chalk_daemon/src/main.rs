@@ -15,7 +15,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 fn main() {
     let app = Arc::new(App::new());
-    app.log(LogType::Info, format!("Starting (v{})", VERSION));
+    app.log(LogType::Info, format!("Starting (v{VERSION})"));
 
     // Init SIG(INT|TERM|HUP) handler
     ctrlc::init(app.clone());

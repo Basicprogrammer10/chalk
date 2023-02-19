@@ -11,6 +11,8 @@ use nix::{
 };
 use nonblock::NonBlockingReader;
 use parking_lot::{Mutex, RwLock};
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
 use serde_derive::Serialize;
 
 use crate::{App, LogType};
@@ -43,14 +45,18 @@ pub struct Project {
     pub project_path: PathBuf,
 
     // == Process Stuff ==
-    /// Current status of the process (for cli / automations?)
+    /// Current status of the process (for cli / automation?)
     pub status: RwLock<ProjectStatus>,
+
+    /// Used for secure communication to the child process
+    /// (Through the `CHALK-KEY` env var)
+    pub interface_secret: RwLock<String>,
 
     /// Lower level process stuff
     pub process: Process,
 
     // == MISC ==
-    /// Refrence to app
+    /// Reference to app
     app: Arc<App>,
 }
 
@@ -78,7 +84,7 @@ pub struct Process {
 #[serde(rename_all = "snake_case")]
 pub enum ProjectStatus {
     Running,
-    Stoped,
+    Stopped,
     Crashed(Option<i32>),
 }
 
@@ -88,8 +94,15 @@ impl Project {
             name: raw.name.to_owned(),
             config: raw,
             project_path: path,
-            status: RwLock::new(ProjectStatus::Stoped),
+            status: RwLock::new(ProjectStatus::Stopped),
             process: Process::new(),
+            interface_secret: RwLock::new(
+                thread_rng()
+                    .sample_iter(Alphanumeric)
+                    .take(10)
+                    .map(char::from)
+                    .collect(),
+            ),
             app,
         }
     }
@@ -106,8 +119,10 @@ impl Project {
         }
 
         if !binary_path.exists() {
-            self.app
-                .log(LogType::Error, format!("No runable binary `{}`", self.name));
+            self.app.log(
+                LogType::Error,
+                format!("No runnable binary `{}`", self.name),
+            );
             return;
         }
 
@@ -116,7 +131,8 @@ impl Project {
         let mut child = match process::Command::new(binary_path)
             .current_dir(self.project_path.join(&self.config.run.path))
             .args(&self.config.run.arguments)
-            .envs(&self.config.run.enviroment_vars)
+            .envs(&self.config.run.environment_vars)
+            .env("CHALK-KEY", &*self.interface_secret.read())
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -192,10 +208,12 @@ impl Project {
             self.process.uptime.store(0, Ordering::Relaxed);
 
             if i.success() {
-                if *self.status.read() != ProjectStatus::Stoped {
-                    *self.status.write() = ProjectStatus::Stoped;
-                    self.app
-                        .log(LogType::Info, format!("Project `{}` has stoped", self.name));
+                if *self.status.read() != ProjectStatus::Stopped {
+                    *self.status.write() = ProjectStatus::Stopped;
+                    self.app.log(
+                        LogType::Info,
+                        format!("Project `{}` has stopped", self.name),
+                    );
                 }
                 return;
             }
@@ -240,7 +258,7 @@ impl Project {
         let config = match toml::from_str::<ProjectConfig>(&raw_config) {
             Ok(i) => i,
             Err(e) => {
-                app.log(LogType::Error, format!("^ Invalid app config: {}", e));
+                app.log(LogType::Error, format!("^ Invalid app config: {e}"));
                 return None;
             }
         };
@@ -254,7 +272,7 @@ impl Project {
 
         // Make app dir if not eggists
         if !app_dir.exists() {
-            app.log(LogType::Info, "Apps folder not found. Makeing one.");
+            app.log(LogType::Info, "Apps folder not found. Making one.");
             fs::create_dir_all(&app_dir).unwrap();
         }
 

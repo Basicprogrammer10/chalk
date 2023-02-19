@@ -91,7 +91,7 @@ pub fn run(args: ArgMatches) {
                 .skip(line.saturating_sub(1))
                 .take(t(line == 0, height - 1, height))
         {
-            let time = Local.timestamp(i.time, 0);
+            let time = Local.timestamp_opt(i.time, 0).unwrap();
             let line = format!("{} {}", time.format("[%Y-%m-%d] [%H:%M:%S]"), i.text);
             queue!(
                 stdout,
@@ -173,7 +173,7 @@ fn basic(info: LogsInfo) {
     }
 
     for i in info.logs {
-        let time = Local.timestamp(i.time, 0);
+        let time = Local.timestamp_opt(i.time, 0).unwrap();
         let line = format!("{} {}", time.format("[%Y-%m-%d] [%H:%M:%S]"), i.text);
         println!("{}", i.log_type.colorize(line));
     }

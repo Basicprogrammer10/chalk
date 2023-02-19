@@ -5,7 +5,7 @@ use serde_derive::Deserialize;
 use serde_json::json;
 
 use crate::{
-    misc::{self, ValadateType},
+    misc::{self, BodyString, ValidateType},
     App,
 };
 
@@ -20,8 +20,8 @@ struct RequestData {
 
 pub fn attach(server: &mut Server, app: Arc<App>) {
     server.route(Method::POST, "/logs", move |req| {
-        let body = serde_json::from_str::<RequestData>(&req.body_string().unwrap()).unwrap();
-        if !ValadateType::Global.valadate(app.clone(), body.token) {
+        let body = serde_json::from_str::<RequestData>(&req.body_string()).unwrap();
+        if !ValidateType::Global.validate(app.clone(), body.token) {
             return misc::error_res("Invalid Token");
         }
 

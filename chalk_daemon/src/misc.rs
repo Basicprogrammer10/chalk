@@ -1,9 +1,11 @@
+use std::borrow::Cow;
 use std::fmt::Display;
+use std::net::IpAddr;
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use afire::{internal::common::remove_address_port, Content, Request, Response};
+use afire::{Content, Request, Response};
 use git2::Repository;
 use serde_json::json;
 
@@ -42,7 +44,7 @@ impl Timer {
 
 // == API Auth ==
 
-pub enum ValadateType {
+pub enum ValidateType {
     /// Requires the global token
     Global,
 
@@ -53,10 +55,10 @@ pub enum ValadateType {
     Any,
 }
 
-impl ValadateType {
+impl ValidateType {
     pub fn token_type(app: Arc<App>, token: String) -> Self {
         if token == app.config.api.token {
-            return ValadateType::Global;
+            return ValidateType::Global;
         }
 
         if app
@@ -65,17 +67,17 @@ impl ValadateType {
             .iter()
             .any(|x| x.config.api_token == token)
         {
-            return ValadateType::Scoped("".to_owned());
+            return ValidateType::Scoped("".to_owned());
         }
 
-        ValadateType::Any
+        ValidateType::Any
     }
 
-    pub fn valadate(&self, app: Arc<App>, token: String) -> bool {
+    pub fn validate(&self, app: Arc<App>, token: String) -> bool {
         token == app.config.api.token
             || match self {
-                ValadateType::Global => false,
-                ValadateType::Scoped(project) => {
+                ValidateType::Global => false,
+                ValidateType::Scoped(project) => {
                     app.projects
                         .read()
                         .iter()
@@ -83,7 +85,7 @@ impl ValadateType {
                         .map(|x| x.config.api_token.to_owned())
                         == Some(token)
                 }
-                ValadateType::Any => app
+                ValidateType::Any => app
                     .projects
                     .read()
                     .iter()
@@ -92,35 +94,24 @@ impl ValadateType {
     }
 }
 
-impl Display for ValadateType {
+impl Display for ValidateType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            ValadateType::Any => "any",
-            ValadateType::Global => "global",
-            ValadateType::Scoped(_) => "scoped",
+            ValidateType::Any => "any",
+            ValidateType::Global => "global",
+            ValidateType::Scoped(..) => "scoped",
         })
     }
 }
 
 // == Misc Functions ==
 
-pub fn get_ip(req: &Request) -> String {
-    let mut ip = remove_address_port(&req.address);
-    if ip == "127.0.0.1" {
-        if let Some(i) = req.headers.iter().find(|x| x.name == "X-Forwarded-For") {
-            ip = i.value.to_owned();
-        }
-    }
-
-    ip
-}
-
-pub fn token_error(app: Arc<App>, req: Request, token: String) -> Response {
+pub fn token_error(app: Arc<App>, req: &Request, token: String) -> Response {
     app.log(
         LogType::Info,
         format!(
             "[WEB] [{}] Tried Invalid token `{}` on `{}`",
-            get_ip(&req),
+            req.real_ip(),
             token,
             req.path
         ),
@@ -135,6 +126,41 @@ pub fn error_res<T: AsRef<str>>(err: T) -> Response {
         .content(Content::JSON)
 }
 
+// == Traits ==
+
+pub trait RealIp {
+    fn real_ip(&self) -> IpAddr;
+}
+
+pub trait BodyString {
+    fn body_string(&self) -> Cow<str>;
+}
+
+impl RealIp for Request {
+    fn real_ip(&self) -> IpAddr {
+        let mut ip = self.address.ip();
+
+        // If Ip is Localhost and 'X-Forwarded-For' Header is present
+        // Use that as Ip
+        if ip.is_loopback() && self.headers.has("X-Forwarded-For") {
+            ip = self
+                .headers
+                .get("X-Forwarded-For")
+                .unwrap()
+                .parse()
+                .unwrap();
+        }
+
+        ip
+    }
+}
+
+impl BodyString for Request {
+    fn body_string(&self) -> Cow<str> {
+        String::from_utf8_lossy(&self.body)
+    }
+}
+
 // == Git stuff ==
 // Modified from https://github.com/rust-lang/git2-rs examples
 
@@ -146,7 +172,7 @@ pub fn do_merge<'a>(
     let analysis = repo.merge_analysis(&[&fetch_commit])?;
 
     if analysis.0.is_fast_forward() {
-        let refname = format!("refs/heads/{}", remote_branch);
+        let refname = format!("refs/heads/{remote_branch}");
         match repo.find_reference(&refname) {
             Ok(mut r) => {
                 let name = match r.name() {

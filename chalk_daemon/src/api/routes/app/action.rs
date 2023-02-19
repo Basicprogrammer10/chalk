@@ -6,6 +6,8 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use afire::{Content, Method, Response, Server};
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine;
 use flate2::read::GzDecoder;
 use git2::{
     build::{CheckoutBuilder, RepoBuilder},
@@ -17,8 +19,9 @@ use serde_derive::Deserialize;
 use serde_json::json;
 
 use crate::app::LogType;
+use crate::misc::{BodyString, RealIp};
 use crate::{
-    misc::{self, ValadateType},
+    misc::{self, ValidateType},
     project::{Project, ProjectStatus},
     App,
 };
@@ -56,8 +59,8 @@ enum ActionType {
 
 pub fn attach(server: &mut Server, app: Arc<App>) {
     server.route(Method::POST, "/app/action", move |req| {
-        let body = serde_json::from_str::<RequestData>(&req.body_string().unwrap()).unwrap();
-        if !ValadateType::Scoped(body.name.to_owned()).valadate(app.clone(), body.token) {
+        let body = serde_json::from_str::<RequestData>(&req.body_string()).unwrap();
+        if !ValidateType::Scoped(body.name.to_owned()).validate(app.clone(), body.token) {
             return misc::error_res("Invalid Token");
         }
 
@@ -70,8 +73,8 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
 
         match body.action {
             ActionType::Stop => {
-                if *project.status.read() == ProjectStatus::Stoped {
-                    return misc::error_res("App Already Stoped");
+                if *project.status.read() == ProjectStatus::Stopped {
+                    return misc::error_res("App Already Stopped");
                 }
 
                 let mut sig = Signal::SIGINT;
@@ -106,7 +109,7 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
                             .with_checkout(checkout_bld)
                             .fetch_options(git_auth_callback(project))
                             .clone(i, &repo_path)
-                            .expect("Error cloneing repo");
+                            .expect("Error cloning repo");
                     }
 
                     let repo = Repository::open(repo_path).expect("Error opening repo");
@@ -120,7 +123,7 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
                     let fetch_head = match body.checkout {
                         Some(i) => repo
                             .resolve_reference_from_short_name(&i)
-                            .expect("Invalid refrence"),
+                            .expect("Invalid reference"),
                         None => repo.find_reference("FETCH_HEAD").unwrap(),
                     };
                     let fetch_commit = repo.reference_to_annotated_commit(&fetch_head).unwrap();
@@ -130,7 +133,7 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
                 }
 
                 if let Some(data) = body.data {
-                    let base64_dec = base64::decode(data).expect("`data` is not valid base64");
+                    let base64_dec = STANDARD.decode(data).expect("`data` is not valid base64");
                     let mut gzip_dec = GzDecoder::new(Cursor::new(base64_dec));
 
                     let mut out = Vec::new();
@@ -159,8 +162,8 @@ pub fn attach(server: &mut Server, app: Arc<App>) {
         app.log(
             LogType::Info,
             format!(
-                "[WEB] [{}] Triggerd `{}` on `{}`",
-                misc::get_ip(&req),
+                "[WEB] [{}] Triggered `{}` on `{}`",
+                req.real_ip(),
                 body.action,
                 name
             ),

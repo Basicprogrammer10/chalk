@@ -88,7 +88,7 @@ impl RemoteControl {
         server.route(self.method, self.path, move |req| {
             let data = match serde_json::from_str::<Value>(&String::from_utf8_lossy(&req.body)) {
                 Ok(i) => i,
-                Err(e) => return err(format!("Invalid JSON: {}", e)),
+                Err(e) => return err(format!("Invalid JSON: {e}")),
             };
 
             let verification = match data.get("verification").and_then(|i| i.as_str()) {

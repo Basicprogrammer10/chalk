@@ -51,7 +51,7 @@ pub fn deamon_req(
 ) -> Result<Value, ActionError>
 where
 {
-    let req = ureq::request(method, &format!("{}{}", host, path));
+    let req = ureq::request(method, &format!("{host}{path}"));
     let req = match body {
         Some(i) => req.send_string(&i.to_string()),
         None => req.call(),
@@ -169,7 +169,7 @@ fn get_token(token: &ArgMatches, raw_host: String) -> Option<(String, bool)> {
     }
 
     // Try reading cache?
-    if let Ok(i) = fs::read_to_string(&token_storage_path) {
+    if let Ok(i) = fs::read_to_string(token_storage_path) {
         let token_storage = serde_json::from_str::<Vec<[String; 2]>>(&i).unwrap();
         if let Some(i) = token_storage.iter().find(|x| x[0] == raw_host) {
             return Some((i[1].clone(), false));

@@ -48,7 +48,7 @@ impl App {
         let config = match fs::read_to_string(&config_path) {
             Ok(i) => toml::from_str(&i).unwrap(),
             Err(_) => {
-                fs::create_dir_all(&config_path.parent().unwrap()).unwrap();
+                fs::create_dir_all(config_path.parent().unwrap()).unwrap();
                 fs::write(&config_path, toml::to_string(&Config::default()).unwrap()).unwrap();
                 println!("{}", "[-] No config file found".red());
                 println!(
@@ -115,7 +115,7 @@ impl App {
 
         let mut to_save = logs
             .iter()
-            .skip(last_save_index as usize)
+            .skip(last_save_index)
             .map(|x| x.to_string())
             .collect::<Vec<_>>();
         to_save.push("".to_owned());
@@ -140,7 +140,7 @@ impl Display for Log {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_fmt(format_args!(
             "[{}] [{}] {}",
-            Utc.timestamp(self.time, 0).format("%H:%M:%S"),
+            Utc.timestamp_opt(self.time, 0).unwrap().format("%H:%M:%S"),
             self.log_type,
             self.data
         ))

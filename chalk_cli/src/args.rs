@@ -5,13 +5,13 @@ use crate::{commands::Commands, VERSION};
 pub fn from_env() -> Commands {
     let base = [
         Arg::new("host")
-            .takes_value(true)
+            .num_args(1)
             .short('d')
             .long("host")
             .help("The address of the daemon to connect to")
             .long_help("Defines the host +/ port of the daemon to connect to"),
         Arg::new("token")
-            .takes_value(true)
+            .num_args(1)
             .short('t')
             .long("token")
             .help("The token to use for request"),
@@ -45,13 +45,13 @@ pub fn from_env() -> Commands {
                         .long("basic")
                         .help("Just prints the latest log entried to the terminal and exits"),
                     Arg::new("start_page")
-                        .takes_value(true)
+                        .num_args(1)
                         .value_parser(value_parser!(usize))
                         .short('p')
                         .long("page")
                         .help("The page to start from (line page * lines)"),
                     Arg::new("lines")
-                        .takes_value(true)
+                        .num_args(1)
                         .value_parser(value_parser!(usize))
                         .short('l')
                         .long("lines")
@@ -74,7 +74,7 @@ pub fn from_env() -> Commands {
                         .about("Stop an app")
                         .args(&base)
                         .arg(Arg::new("app").required(true))
-                        .arg(Arg::new("signal").takes_value(true)),
+                        .arg(Arg::new("signal").num_args(1)),
                 ]),
         ])
         .get_matches();

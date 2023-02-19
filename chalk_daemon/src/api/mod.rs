@@ -17,12 +17,12 @@ pub fn start(app: Arc<App>) {
 
 fn _start(app: Arc<App>) {
     // Create Server
-    let mut server = Server::<()>::new(&app.config.api.host, app.config.api.port);
+    let mut server = Server::<()>::new(app.config.api.host.as_str(), app.config.api.port);
 
     // Change error handler to use json
     let error_app = app.clone();
-    server.error_handler(move |_req, err| {
-        error_app.log(LogType::Error, format!("[WEB] {}", err));
+    server.error_handler(move |_state, _req, err| {
+        error_app.log(LogType::Error, format!("[WEB] {err}"));
         Response::new()
             .status(500)
             .text(json!({ "error": err }))
